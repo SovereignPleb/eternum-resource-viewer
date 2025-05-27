@@ -145,9 +145,12 @@ export default function Home() {
         
         <RealmForm onSubmit={handleSubmit} loading={loading} />
         
-        <div style={{ marginBottom: '1rem' }}>
+        <div style={{ marginBottom: '1rem', display: 'flex', gap: '1rem' }}>
           <Link href="/find-realms" style={{ color: 'var(--color-primary)' }}>
             Find Valid Realm IDs →
+          </Link>
+          <Link href="/diagnose" style={{ color: 'var(--color-primary)' }}>
+            Diagnostic Tools →
           </Link>
         </div>
         
