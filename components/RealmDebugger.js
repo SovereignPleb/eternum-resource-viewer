@@ -29,7 +29,9 @@ export default function RealmDebugger() {
       const entityResponse = await fetch('/api/query-sql', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: entityQuery }),
+        body: JSON.stringify({ 
+          query: entityQuery
+        }),
       });
       
       const entityData = await entityResponse.json();
