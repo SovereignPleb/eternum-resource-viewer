@@ -51,7 +51,8 @@ export default function Home() {
         throw new Error(`Failed to fetch realm data: ${entityData.error || 'Unknown error'}`);
       }
       
-      if (!entityData.data || entityData.data.length === 0) {
+      // Check if we have data in the expected format
+      if (!entityData.data || !Array.isArray(entityData.data) || entityData.data.length === 0) {
         throw new Error(`Realm with ID ${realmId} not found. The realm might not exist or there could be an issue with the API connection.`);
       }
       
@@ -78,11 +79,12 @@ export default function Home() {
       const levelData = await levelResponse.json();
       setApiResponses(prev => ({ ...prev, levelQuery: levelData }));
       
-      if (!levelResponse.ok) {
-        console.warn('Level query failed, defaulting to level 1');
+      let realmLevel = 1;
+      if (levelResponse.ok && levelData.data && Array.isArray(levelData.data) && levelData.data.length > 0) {
+        realmLevel = levelData.data[0].level || 1;
+      } else {
+        console.warn('Level query failed or returned no data, defaulting to level 1');
       }
-      
-      const realmLevel = levelData.data && levelData.data.length > 0 ? levelData.data[0].level : 1;
       
       // Step 3: Get resource data
       const resourceQuery = `
@@ -110,7 +112,7 @@ export default function Home() {
         throw new Error(`Failed to fetch resource data: ${resourceData.error || 'Unknown error'}`);
       }
       
-      if (!resourceData.data || resourceData.data.length === 0) {
+      if (!resourceData.data || !Array.isArray(resourceData.data) || resourceData.data.length === 0) {
         throw new Error(`No resources found for realm with ID ${realmId} (entity ID: ${entityId}).`);
       }
       
