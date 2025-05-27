@@ -25,11 +25,23 @@ LIMIT 5;
     setResponse(null);
     
     try {
+      // Format request using JSON-RPC 2.0 protocol
+      const jsonRpcRequest = {
+        jsonrpc: "2.0",
+        id: 1,
+        method: "torii_sql",
+        params: {
+          query: query
+        }
+      };
+      
+      console.log('Testing with JSON-RPC request:', JSON.stringify(jsonRpcRequest, null, 2));
+      
       // Try direct fetch to the API endpoint
       const directResponse = await fetch(apiEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify(jsonRpcRequest),
       });
       
       let data;
