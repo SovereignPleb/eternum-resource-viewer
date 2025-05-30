@@ -19,9 +19,12 @@ export default function DiagnosePage() {
       <main>
         <h1>Eternum Resource Viewer - Diagnostics</h1>
         
-        <div style={{ marginBottom: '1.5rem' }}>
+        <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
           <Link href="/" style={{ color: 'var(--color-primary)' }}>
             &larr; Back to Resource Viewer
+          </Link>
+          <Link href="/realms-explorer" style={{ color: 'var(--color-primary)' }}>
+            Realms Explorer →
           </Link>
         </div>
         
