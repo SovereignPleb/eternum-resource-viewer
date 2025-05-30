@@ -5,7 +5,7 @@ export default function ApiTester() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [response, setResponse] = useState(null);
-  const [apiEndpoint, setApiEndpoint] = useState('https://api.cartridge.gg/x/eternum-game-mainnet-25/torii/sql');
+  const [apiEndpoint, setApiEndpoint] = useState('https://api.cartridge.gg/x/eternum-game-mainnet-27/torii/sql');
   const [query, setQuery] = useState(`
 SELECT id, entity_id, realm_name, owner_name
 FROM "s1_eternum-SettleRealmData"
@@ -14,8 +14,9 @@ LIMIT 5;
 
   // Known API endpoints to try
   const knownEndpoints = [
-    'https://api.cartridge.gg/x/eternum-game-mainnet-25/torii/sql',
-    'https://api.cartridge.gg/x/eternum-game/torii/sql', // Without mainnet-25
+    'https://api.cartridge.gg/x/eternum-game-mainnet-27/torii/sql', // Current endpoint
+    'https://api.cartridge.gg/x/eternum-game-mainnet-25/torii/sql', // Old endpoint
+    'https://api.cartridge.gg/x/eternum-game/torii/sql', // Without mainnet version
     'https://api.cartridge.gg/x/eternum/torii/sql', // Even simpler path
   ];
 
