@@ -186,13 +186,10 @@ export default function Home() {
         {/* Simple search component */}
         <SimpleRealmSearch onSubmit={handleSubmit} loading={loading} />
         
-        {/* Navigation links */}
+        {/* Navigation links - removed Find Valid Realm IDs link */}
         <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
           <Link href="/realms-explorer" style={{ color: 'var(--color-primary)' }}>
             Realms Explorer →
-          </Link>
-          <Link href="/find-realms" style={{ color: 'var(--color-primary)' }}>
-            Find Valid Realm IDs →
           </Link>
           <Link href="/diagnose" style={{ color: 'var(--color-primary)' }}>
             Diagnostic Tools →
@@ -219,11 +216,6 @@ export default function Home() {
               >
                 {showDebugger ? 'Hide Debug Info' : 'Show Debug Info'}
               </button>
-              <Link href="/find-realms">
-                <button style={{ backgroundColor: 'var(--color-secondary)' }}>
-                  Find Valid Realm IDs
-                </button>
-              </Link>
             </div>
           </div>
         )}
