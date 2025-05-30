@@ -12,14 +12,21 @@ export default function RealmsExplorer() {
   const [sortField, setSortField] = useState('realm_id');
   const [sortDirection, setSortDirection] = useState('asc');
   const [searchTerm, setSearchTerm] = useState('');
-  const [limit, setLimit] = useState(50);
-  const [queryType, setQueryType] = useState('recent'); // 'recent' or 'range'
+  const [limit, setLimit] = useState(2500); // Increased to show all realms
+  const [queryType, setQueryType] = useState('all'); // 'all', 'recent', or 'range'
   const [minId, setMinId] = useState(1);
-  const [maxId, setMaxId] = useState(1000);
+  const [maxId, setMaxId] = useState(3000);
+  const [totalRealmCount, setTotalRealmCount] = useState(0);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // Function to fetch realms data
-  const fetchRealms = async () => {
-    setLoading(true);
+  const fetchRealms = async (resetRealms = true) => {
+    if (resetRealms) {
+      setLoading(true);
+      setRealms([]);
+    } else {
+      setIsLoadingMore(true);
+    }
     setError('');
     
     try {
@@ -33,12 +40,20 @@ export default function RealmsExplorer() {
           ORDER BY id DESC
           LIMIT ${limit};
         `;
-      } else {
+      } else if (queryType === 'range') {
         // Search within ID range
         query = `
           SELECT id, entity_id, realm_name, owner_name
           FROM "s1_eternum-SettleRealmData"
           WHERE id BETWEEN ${minId} AND ${maxId}
+          ORDER BY id
+          LIMIT ${limit};
+        `;
+      } else {
+        // Get all realms, ordered by ID
+        query = `
+          SELECT id, entity_id, realm_name, owner_name
+          FROM "s1_eternum-SettleRealmData"
           ORDER BY id
           LIMIT ${limit};
         `;
@@ -57,9 +72,35 @@ export default function RealmsExplorer() {
       }
       
       if (!data.data || data.data.length === 0) {
-        setError(`No realms found ${queryType === 'range' ? 'in the specified range' : ''}.`);
-        setRealms([]);
+        if (resetRealms) {
+          setError(`No realms found ${queryType === 'range' ? 'in the specified range' : ''}.`);
+          setRealms([]);
+        }
         return;
+      }
+      
+      // Get total realm count to show in the UI
+      if (resetRealms) {
+        try {
+          const countQuery = `
+            SELECT COUNT(*) as count
+            FROM "s1_eternum-SettleRealmData";
+          `;
+          
+          const countResponse = await fetch('/api/query-sql', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: countQuery }),
+          });
+          
+          const countData = await countResponse.json();
+          
+          if (countResponse.ok && countData.data && countData.data.length > 0) {
+            setTotalRealmCount(countData.data[0].count || 0);
+          }
+        } catch (countErr) {
+          console.error('Error fetching realm count:', countErr);
+        }
       }
       
       // Transform the API data to our format
@@ -71,16 +112,22 @@ export default function RealmsExplorer() {
         decoded_name: decodeRealmName(realm.realm_name)
       }));
       
-      setRealms(transformedRealms);
+      if (resetRealms) {
+        setRealms(transformedRealms);
+      } else {
+        // Append new realms to existing list if loading more
+        setRealms(prevRealms => [...prevRealms, ...transformedRealms]);
+      }
     } catch (err) {
       console.error('Error fetching realms:', err);
       setError(err.message || 'Failed to fetch realms data');
     } finally {
       setLoading(false);
+      setIsLoadingMore(false);
     }
   };
 
-  // Fetch realms on initial load
+  // Fetch all realms on initial load
   useEffect(() => {
     fetchRealms();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -145,6 +192,11 @@ export default function RealmsExplorer() {
         
         <div style={{ marginBottom: '2rem' }}>
           <p>Explore and search realms in the Eternum game. Click on a realm ID to view its resources.</p>
+          {totalRealmCount > 0 && (
+            <p style={{ color: 'var(--color-primary)' }}>
+              Total realms in database: <strong>{totalRealmCount.toLocaleString()}</strong>
+            </p>
+          )}
         </div>
         
         {/* Query Controls */}
@@ -155,7 +207,17 @@ export default function RealmsExplorer() {
           borderRadius: '4px'
         }}>
           <div style={{ marginBottom: '1rem' }}>
-            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <input
+                  type="radio"
+                  name="queryType"
+                  value="all"
+                  checked={queryType === 'all'}
+                  onChange={() => setQueryType('all')}
+                />
+                All Realms
+              </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <input
                   type="radio"
@@ -179,8 +241,8 @@ export default function RealmsExplorer() {
             </div>
             
             {queryType === 'range' && (
-              <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: '150px' }}>
                   <label style={{ display: 'block', marginBottom: '0.5rem' }}>
                     Min ID:
                   </label>
@@ -193,7 +255,7 @@ export default function RealmsExplorer() {
                     disabled={loading}
                   />
                 </div>
-                <div style={{ flex: 1 }}>
+                <div style={{ flex: 1, minWidth: '150px' }}>
                   <label style={{ display: 'block', marginBottom: '0.5rem' }}>
                     Max ID:
                   </label>
@@ -209,10 +271,10 @@ export default function RealmsExplorer() {
               </div>
             )}
             
-            <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
-              <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: '150px' }}>
                 <label style={{ display: 'block', marginBottom: '0.5rem' }}>
-                  Limit Results:
+                  Result Limit:
                 </label>
                 <select
                   value={limit}
@@ -227,17 +289,17 @@ export default function RealmsExplorer() {
                   }}
                   disabled={loading}
                 >
-                  <option value={10}>10 realms</option>
-                  <option value={25}>25 realms</option>
-                  <option value={50}>50 realms</option>
                   <option value={100}>100 realms</option>
-                  <option value={200}>200 realms</option>
+                  <option value={500}>500 realms</option>
+                  <option value={1000}>1,000 realms</option>
+                  <option value={2500}>2,500 realms</option>
+                  <option value={5000}>5,000 realms</option>
                 </select>
               </div>
               
               <button
-                onClick={fetchRealms}
-                disabled={loading}
+                onClick={() => fetchRealms()}
+                disabled={loading || isLoadingMore}
                 style={{ padding: '0.5rem 1rem' }}
               >
                 {loading ? 'Loading...' : 'Fetch Realms'}
@@ -251,9 +313,11 @@ export default function RealmsExplorer() {
           display: 'flex', 
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '1rem'
+          marginBottom: '1rem',
+          flexWrap: 'wrap',
+          gap: '1rem'
         }}>
-          <div style={{ flex: 1, maxWidth: '400px' }}>
+          <div style={{ flex: 1, minWidth: '250px' }}>
             <input
               type="text"
               placeholder="Search by name, ID, or owner..."
@@ -263,7 +327,7 @@ export default function RealmsExplorer() {
             />
           </div>
           
-          <div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button
               onClick={() => setShowHex(!showHex)}
               style={{ 
@@ -275,6 +339,19 @@ export default function RealmsExplorer() {
             </button>
           </div>
         </div>
+        
+        {/* Stats Display */}
+        {realms.length > 0 && (
+          <div style={{ 
+            marginBottom: '1rem', 
+            fontSize: '0.9rem',
+            color: '#999'
+          }}>
+            Showing {filteredAndSortedRealms.length} realms
+            {searchTerm && ` (filtered from ${realms.length})`}
+            {totalRealmCount > realms.length && ` out of ${totalRealmCount} total realms`}
+          </div>
+        )}
         
         {/* Error Display */}
         {error && <div className="error">{error}</div>}
@@ -431,6 +508,27 @@ export default function RealmsExplorer() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        
+        {/* Load More Button */}
+        {!loading && !error && realms.length > 0 && realms.length < totalRealmCount && (
+          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            <button
+              onClick={() => {
+                // Update the limit to fetch more realms
+                const newLimit = limit + 1000;
+                setLimit(newLimit);
+                fetchRealms();
+              }}
+              disabled={isLoadingMore}
+              style={{ 
+                padding: '0.5rem 1.5rem',
+                backgroundColor: 'var(--color-secondary)'
+              }}
+            >
+              {isLoadingMore ? 'Loading...' : `Load More Realms`}
+            </button>
           </div>
         )}
         
