@@ -14,6 +14,7 @@ LIMIT 5;
 
   // Known API endpoints to try
   const knownEndpoints = [
+    'https://api.cartridge.gg/x/eternum-game-mainnet-30/torii/sql', // Current endpoint
     'https://api.cartridge.gg/x/eternum-game-mainnet-27/torii/sql', // Current endpoint
     'https://api.cartridge.gg/x/eternum-game-mainnet-25/torii/sql', // Old endpoint
     'https://api.cartridge.gg/x/eternum-game/torii/sql', // Without mainnet version
