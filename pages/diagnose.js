@@ -179,6 +179,7 @@ export default function DiagnosePage() {
               <p>The Eternum API endpoint may change over time as the game updates. Here are some endpoints to try:</p>
               
               <ul style={{ paddingLeft: '1.5rem', marginTop: '0.5rem' }}>
+                <li><code>https://api.cartridge.gg/x/eternum-game-mainnet-30/torii/sql</code> (Current - mainnet-30)</li>
                 <li><code>https://api.cartridge.gg/x/eternum-game-mainnet-27/torii/sql</code> (Current - mainnet-27)</li>
                 <li><code>https://api.cartridge.gg/x/eternum-game-mainnet-25/torii/sql</code> (Legacy - mainnet-25)</li>
                 <li><code>https://api.cartridge.gg/x/eternum-game/torii/sql</code> (Without mainnet version)</li>
