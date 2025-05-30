@@ -16,7 +16,7 @@ export default function RealmsExplorer() {
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(100);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
 
   // Function to fetch all realms data at once
   const fetchAllRealms = async () => {
