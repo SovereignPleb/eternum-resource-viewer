@@ -183,10 +183,11 @@ export default function Home() {
       <main>
         <h1>Eternum Resource Viewer</h1>
         
-        {/* Replace RealmForm with EnhancedRealmSearch */}
+        {/* Enhanced search component */}
         <EnhancedRealmSearch onSubmit={handleSubmit} loading={loading} />
         
-        <div style={{ marginBottom: '1rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+        {/* Navigation links - displayed below search results to avoid overlap */}
+        <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
           <Link href="/realms-explorer" style={{ color: 'var(--color-primary)' }}>
             Realms Explorer →
           </Link>
