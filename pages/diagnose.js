@@ -68,13 +68,18 @@ export default function DiagnosePage() {
             
             <div style={{ marginBottom: '2rem' }}>
               <h3>Known API Endpoints</h3>
-              <p>The Eternum API endpoint may have changed. Here are some endpoints to try:</p>
+              <p>The Eternum API endpoint may change over time as the game updates. Here are some endpoints to try:</p>
               
               <ul style={{ paddingLeft: '1.5rem', marginTop: '0.5rem' }}>
-                <li><code>https://api.cartridge.gg/x/eternum-game-mainnet-25/torii/sql</code> (Original)</li>
-                <li><code>https://api.cartridge.gg/x/eternum-game/torii/sql</code> (Without mainnet-25)</li>
+                <li><code>https://api.cartridge.gg/x/eternum-game-mainnet-27/torii/sql</code> (Current - mainnet-27)</li>
+                <li><code>https://api.cartridge.gg/x/eternum-game-mainnet-25/torii/sql</code> (Legacy - mainnet-25)</li>
+                <li><code>https://api.cartridge.gg/x/eternum-game/torii/sql</code> (Without mainnet version)</li>
                 <li><code>https://api.cartridge.gg/x/eternum/torii/sql</code> (Simplified path)</li>
               </ul>
+              
+              <p style={{ marginTop: '1rem', color: 'var(--color-primary)' }}>
+                <strong>Note:</strong> The endpoint was updated from mainnet-25 to mainnet-27 in the latest version.
+              </p>
             </div>
             
             <div style={{ marginBottom: '2rem' }}>
@@ -88,9 +93,9 @@ export default function DiagnosePage() {
               
               <div style={{ marginBottom: '1rem' }}>
                 <h4>2. API Changes</h4>
-                <p>The Eternum API might have changed since this app was created. This could include:</p>
+                <p>The Eternum API might change over time. Common changes include:</p>
                 <ul style={{ paddingLeft: '1.5rem' }}>
-                  <li>New endpoint URL</li>
+                  <li>New endpoint URL (like the update from mainnet-25 to mainnet-27)</li>
                   <li>Changed database schema</li>
                   <li>New authentication requirements</li>
                 </ul>
@@ -133,7 +138,7 @@ export default function DiagnosePage() {
   - [RESOURCE_NAME]_PRODUCTION.output_amount_left`}
               </pre>
               
-              <p>The schema might have changed since the app was created.</p>
+              <p>The schema might change as the game evolves.</p>
             </div>
           </div>
         )}
