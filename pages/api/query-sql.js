@@ -13,7 +13,7 @@ export default async function handler(req, res) {
   }
 
   // Allow custom endpoint or use default
-  const apiEndpoint = endpoint || 'https://api.cartridge.gg/x/eternum-game-mainnet-25/torii/sql';
+  const apiEndpoint = endpoint || 'https://api.cartridge.gg/x/eternum-game-mainnet-27/torii/sql';
   
   console.log('Executing query:', query);
   console.log('Using API endpoint:', apiEndpoint);
