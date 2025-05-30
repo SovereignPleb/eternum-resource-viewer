@@ -7,12 +7,16 @@ import { decodeRealmName } from '../utils/conversion';
 export default function RealmsExplorer() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [realms, setRealms] = useState([]);
+  const [allRealms, setAllRealms] = useState([]); // Store all realms
   const [showHex, setShowHex] = useState(false);
   const [sortField, setSortField] = useState('realm_id');
   const [sortDirection, setSortDirection] = useState('asc');
   const [searchTerm, setSearchTerm] = useState('');
   const [totalRealmCount, setTotalRealmCount] = useState(0);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(100);
 
   // Function to fetch all realms data at once
   const fetchAllRealms = async () => {
@@ -41,7 +45,7 @@ export default function RealmsExplorer() {
       
       if (!data.data || data.data.length === 0) {
         setError('No realms found in the database.');
-        setRealms([]);
+        setAllRealms([]);
         return;
       }
       
@@ -56,7 +60,7 @@ export default function RealmsExplorer() {
         decoded_name: decodeRealmName(realm.realm_name)
       }));
       
-      setRealms(transformedRealms);
+      setAllRealms(transformedRealms);
     } catch (err) {
       console.error('Error fetching realms:', err);
       setError(err.message || 'Failed to fetch realms data');
@@ -80,8 +84,13 @@ export default function RealmsExplorer() {
     }
   };
 
+  // Reset to first page when search term changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
   // Filter and sort realms
-  const filteredAndSortedRealms = realms
+  const filteredAndSortedRealms = allRealms
     .filter(realm => {
       if (!searchTerm) return true;
       
@@ -107,6 +116,85 @@ export default function RealmsExplorer() {
         return valueA < valueB ? 1 : -1;
       }
     });
+
+  // Calculate pagination
+  const totalPages = Math.ceil(filteredAndSortedRealms.length / itemsPerPage);
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentRealms = filteredAndSortedRealms.slice(indexOfFirstItem, indexOfLastItem);
+
+  // Handle page change
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+    // Scroll back to top of table
+    const tableElement = document.getElementById('realms-table');
+    if (tableElement) {
+      window.scrollTo({ top: tableElement.offsetTop - 20, behavior: 'smooth' });
+    }
+  };
+
+  // Generate pagination buttons
+  const renderPaginationButtons = () => {
+    const buttons = [];
+    
+    // Calculate range of buttons to show
+    let startPage = Math.max(1, currentPage - 2);
+    let endPage = Math.min(totalPages, startPage + 4);
+    
+    // Adjust start if end range is maxed out
+    if (endPage - startPage < 4) {
+      startPage = Math.max(1, endPage - 4);
+    }
+    
+    // Always show first page
+    if (startPage > 1) {
+      buttons.push(
+        <button 
+          key={1} 
+          onClick={() => handlePageChange(1)}
+          className="pagination-button"
+        >
+          1
+        </button>
+      );
+      
+      if (startPage > 2) {
+        buttons.push(<span key="ellipsis1">...</span>);
+      }
+    }
+    
+    // Add page buttons
+    for (let i = startPage; i <= endPage; i++) {
+      buttons.push(
+        <button 
+          key={i} 
+          onClick={() => handlePageChange(i)}
+          className={`pagination-button ${currentPage === i ? 'active' : ''}`}
+        >
+          {i}
+        </button>
+      );
+    }
+    
+    // Always show last page
+    if (endPage < totalPages) {
+      if (endPage < totalPages - 1) {
+        buttons.push(<span key="ellipsis2">...</span>);
+      }
+      
+      buttons.push(
+        <button 
+          key={totalPages} 
+          onClick={() => handlePageChange(totalPages)}
+          className="pagination-button"
+        >
+          {totalPages}
+        </button>
+      );
+    }
+    
+    return buttons;
+  };
 
   return (
     <div className="container">
@@ -163,7 +251,31 @@ export default function RealmsExplorer() {
             )}
           </div>
           
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value));
+                  setCurrentPage(1); // Reset to first page
+                }}
+                style={{ 
+                  padding: '0.5rem',
+                  backgroundColor: 'var(--color-secondary)',
+                  color: 'var(--color-text)',
+                  border: '1px solid #444',
+                  borderRadius: '4px'
+                }}
+              >
+                <option value={25}>25 per page</option>
+                <option value={50}>50 per page</option>
+                <option value={100}>100 per page</option>
+                <option value={250}>250 per page</option>
+                <option value={500}>500 per page</option>
+                <option value={1000}>1000 per page</option>
+              </select>
+            </div>
+            
             <button
               onClick={() => setShowHex(!showHex)}
               style={{ 
@@ -175,6 +287,45 @@ export default function RealmsExplorer() {
             </button>
           </div>
         </div>
+        
+        {/* Stats Display */}
+        {filteredAndSortedRealms.length > 0 && (
+          <div style={{ 
+            marginBottom: '1rem', 
+            fontSize: '0.9rem',
+            color: '#999',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '1rem'
+          }}>
+            <div>
+              Showing {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, filteredAndSortedRealms.length)} of {filteredAndSortedRealms.length} realms
+              {searchTerm && ` matching "${searchTerm}"`}
+            </div>
+            
+            {totalPages > 1 && (
+              <div className="pagination" style={{ margin: 0 }}>
+                <button 
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="pagination-button"
+                >
+                  &lt;
+                </button>
+                {renderPaginationButtons()}
+                <button 
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="pagination-button"
+                >
+                  &gt;
+                </button>
+              </div>
+            )}
+          </div>
+        )}
         
         {/* Error Display */}
         {error && (
@@ -201,13 +352,16 @@ export default function RealmsExplorer() {
         )}
         
         {/* Results Display */}
-        {!loading && filteredAndSortedRealms.length > 0 && (
-          <div style={{ 
-            overflowX: 'auto',
-            marginBottom: '2rem',
-            border: '1px solid #444',
-            borderRadius: '4px'
-          }}>
+        {!loading && currentRealms.length > 0 && (
+          <div 
+            id="realms-table"
+            style={{ 
+              overflowX: 'auto',
+              marginBottom: '2rem',
+              border: '1px solid #444',
+              borderRadius: '4px'
+            }}
+          >
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ backgroundColor: 'var(--color-secondary)' }}>
@@ -271,7 +425,7 @@ export default function RealmsExplorer() {
                 </tr>
               </thead>
               <tbody>
-                {filteredAndSortedRealms.map((realm) => (
+                {currentRealms.map((realm) => (
                   <tr 
                     key={realm.entity_id}
                     style={{ 
@@ -331,6 +485,33 @@ export default function RealmsExplorer() {
           </div>
         )}
         
+        {/* Bottom Pagination */}
+        {!loading && filteredAndSortedRealms.length > itemsPerPage && (
+          <div style={{ 
+            display: 'flex',
+            justifyContent: 'center',
+            marginBottom: '2rem'
+          }}>
+            <div className="pagination">
+              <button 
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="pagination-button"
+              >
+                &lt;
+              </button>
+              {renderPaginationButtons()}
+              <button 
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="pagination-button"
+              >
+                &gt;
+              </button>
+            </div>
+          </div>
+        )}
+        
         {!loading && filteredAndSortedRealms.length === 0 && !error && (
           <div style={{ 
             padding: '2rem', 
@@ -361,10 +542,40 @@ export default function RealmsExplorer() {
             <li>Realm IDs are the public identifiers shown in-game</li>
             <li>Entity IDs are internal database identifiers used to link resources</li>
             <li>Realm names are stored as hexadecimal values on the blockchain</li>
-            <li>All {totalRealmCount} realms are loaded for immediate search and filtering</li>
+            <li>All {totalRealmCount} realms are loaded for instant search and filtering</li>
           </ul>
         </div>
       </main>
+      
+      <style jsx>{`
+        .pagination {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+        
+        .pagination-button {
+          padding: 0.25rem 0.5rem;
+          min-width: 2rem;
+          text-align: center;
+          background-color: var(--color-secondary);
+          border: none;
+          border-radius: 4px;
+          color: var(--color-text);
+          cursor: pointer;
+        }
+        
+        .pagination-button.active {
+          background-color: var(--color-primary);
+          color: #000;
+          font-weight: bold;
+        }
+        
+        .pagination-button:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+      `}</style>
     </div>
   );
 }
