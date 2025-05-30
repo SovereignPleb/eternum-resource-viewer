@@ -1,5 +1,5 @@
 // components/SimpleRealmSearch.js
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { decodeRealmName } from '../utils/conversion';
 
 export default function SimpleRealmSearch({ onSubmit, loading }) {
@@ -7,10 +7,25 @@ export default function SimpleRealmSearch({ onSubmit, loading }) {
   const [allRealms, setAllRealms] = useState([]);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [searchError, setSearchError] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [showResults, setShowResults] = useState(false);
+  const searchRef = useRef(null);
 
   // Load all realms data once on component mount
   useEffect(() => {
     fetchAllRealms();
+    
+    // Add click outside listener to close dropdown
+    const handleClickOutside = (event) => {
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
+        setShowResults(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
   // Fetch all realms for searching
@@ -54,35 +69,94 @@ export default function SimpleRealmSearch({ onSubmit, loading }) {
     }
   };
 
+  // Update search results when search term changes
+  useEffect(() => {
+    if (!searchTerm || !dataLoaded) {
+      setSearchResults([]);
+      setShowResults(false);
+      return;
+    }
+    
+    // Filter realms based on search term
+    const searchLower = searchTerm.toLowerCase();
+    const filtered = allRealms.filter(realm => {
+      return (
+        // Match by name
+        realm.decoded_name.toLowerCase().includes(searchLower) ||
+        // Match by realm ID
+        realm.realm_id.toString().includes(searchTerm) ||
+        // Match by entity ID
+        realm.entity_id.toString().includes(searchTerm)
+      );
+    });
+    
+    // Limit to first 10 results for dropdown
+    const limitedResults = filtered.slice(0, 10);
+    
+    setSearchResults(limitedResults);
+    setShowResults(limitedResults.length > 0);
+  }, [searchTerm, allRealms, dataLoaded]);
+
   // Handle search submission
   const handleSubmit = (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
+    
     if (!searchTerm) return;
     
-    // If search is a number, try it as a realm ID
-    if (/^\d+$/.test(searchTerm)) {
-      onSubmit(searchTerm);
-      setSearchTerm(''); // Clear search after submission
+    // If there's exactly one match or it's a direct ID match, submit that
+    if (searchResults.length === 1) {
+      selectRealm(searchResults[0].realm_id);
       return;
     }
     
-    // Check if search matches any realm name
-    const nameMatch = allRealms.find(realm => 
-      realm.decoded_name.toLowerCase().includes(searchTerm.toLowerCase())
+    // Try exact matches first
+    const exactRealmIdMatch = searchResults.find(realm => 
+      realm.realm_id.toString() === searchTerm
     );
     
-    if (nameMatch) {
-      onSubmit(nameMatch.realm_id);
-      setSearchTerm(''); // Clear search after submission
+    if (exactRealmIdMatch) {
+      selectRealm(exactRealmIdMatch.realm_id);
       return;
     }
     
-    // No matches found
-    setSearchError('No matching realms found. Try a different search term or use the Realms Explorer.');
+    const exactEntityIdMatch = searchResults.find(realm => 
+      realm.entity_id.toString() === searchTerm
+    );
+    
+    if (exactEntityIdMatch) {
+      selectRealm(exactEntityIdMatch.realm_id);
+      return;
+    }
+    
+    // If there are multiple matches, keep the dropdown open
+    if (searchResults.length > 0) {
+      setShowResults(true);
+    } else {
+      // No matches found
+      setSearchError('No matching realms found. Try a different search term or use the Realms Explorer.');
+    }
+  };
+
+  // Handle selecting a realm from the dropdown
+  const selectRealm = (realmId) => {
+    onSubmit(realmId);
+    setSearchTerm(''); // Clear search after submission
+    setShowResults(false);
+  };
+
+  // Handle key press for navigation
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSubmit();
+    } else if (e.key === 'Escape') {
+      // Close dropdown on escape key
+      setShowResults(false);
+    }
   };
 
   return (
-    <div style={{ marginBottom: '2rem' }}>
+    <div ref={searchRef} style={{ position: 'relative', marginBottom: '2rem' }}>
       <form onSubmit={handleSubmit} style={{ 
         padding: '1rem', 
         backgroundColor: '#3a3a3a', 
@@ -105,15 +179,58 @@ export default function SimpleRealmSearch({ onSubmit, loading }) {
               setSearchTerm(e.target.value);
               setSearchError('');
             }}
-            placeholder="e.g. 691 or Nutnut"
+            onKeyDown={handleKeyPress}
+            onFocus={() => {
+              if (searchTerm && searchResults.length > 0) {
+                setShowResults(true);
+              }
+            }}
+            placeholder="e.g. 691, 763 (Entity ID), or Nutnut"
             disabled={loading}
             style={{ flex: 1 }}
           />
           <button type="submit" disabled={loading || !searchTerm}>
-            {loading ? 'Loading...' : 'View Resources'}
+            {loading ? 'Loading...' : 'Search'}
           </button>
         </div>
       </form>
+      
+      {/* Search Results Dropdown */}
+      {showResults && searchResults.length > 0 && (
+        <div style={{ 
+          position: 'absolute', 
+          width: '100%', 
+          backgroundColor: 'var(--color-background)',
+          border: '1px solid #555',
+          borderRadius: '4px',
+          zIndex: 10,
+          maxHeight: '300px',
+          overflowY: 'auto',
+          boxShadow: '0 4px 8px rgba(0,0,0,0.2)'
+        }}>
+          {searchResults.map((realm) => (
+            <div 
+              key={realm.entity_id}
+              onClick={() => selectRealm(realm.realm_id)}
+              style={{
+                padding: '0.75rem',
+                borderBottom: '1px solid #333',
+                cursor: 'pointer'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-secondary)'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+            >
+              <div style={{ fontWeight: 'bold', color: 'var(--color-primary)' }}>
+                {realm.decoded_name || 'Unknown Realm'}
+              </div>
+              <div style={{ display: 'flex', gap: '1rem', fontSize: '0.9rem', marginTop: '0.25rem' }}>
+                <div>Realm ID: {realm.realm_id}</div>
+                <div>Entity ID: {realm.entity_id}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       
       {searchError && (
         <div className="error">
