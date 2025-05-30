@@ -1,4 +1,4 @@
-// Copy this entire file and save it as pages/test-api.js
+// pages/test-api.js
 
 import { useState } from 'react';
 import Head from 'next/head';
@@ -28,7 +28,7 @@ export default function TestApiPage() {
       console.log('Sending JSON-RPC request:', JSON.stringify(jsonRpcRequest, null, 2));
       
       // Make the direct API request
-      const response = await fetch('https://api.cartridge.gg/x/eternum-game-mainnet-25/torii/sql', {
+      const response = await fetch('https://api.cartridge.gg/x/eternum-game-mainnet-27/torii/sql', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(jsonRpcRequest),
@@ -61,6 +61,7 @@ export default function TestApiPage() {
       
       <h1>Direct API Test</h1>
       <p>This page tests connecting directly to the Eternum API using JSON-RPC format.</p>
+      <p>Current API endpoint: <code>https://api.cartridge.gg/x/eternum-game-mainnet-27/torii/sql</code></p>
       
       <div style={{ marginBottom: '20px' }}>
         <label style={{ display: 'block', marginBottom: '8px' }}>
@@ -166,7 +167,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Query is required' });
   }
 
-  const apiEndpoint = 'https://api.cartridge.gg/x/eternum-game-mainnet-25/torii/sql';
+  const apiEndpoint = 'https://api.cartridge.gg/x/eternum-game-mainnet-27/torii/sql';
   
   try {
     // Format the request using JSON-RPC 2.0 protocol
