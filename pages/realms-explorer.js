@@ -12,7 +12,8 @@ export default function RealmsExplorer() {
   const [sortField, setSortField] = useState('realm_id');
   const [sortDirection, setSortDirection] = useState('asc');
   const [searchTerm, setSearchTerm] = useState('');
-  const [limit, setLimit] = useState(100);
+  const [searchResults, setSearchResults] = useState(null);
+  const [isSearching, setIsSearching] = useState(false);
   const [queryType, setQueryType] = useState('all'); // 'all', 'recent', or 'range'
   const [minId, setMinId] = useState(1);
   const [maxId, setMaxId] = useState(1000);
@@ -27,6 +28,7 @@ export default function RealmsExplorer() {
       setLoading(true);
       setRealms([]);
       setHasMoreRealms(true);
+      setSearchResults(null);
     } else {
       setIsLoadingMore(true);
     }
@@ -39,7 +41,7 @@ export default function RealmsExplorer() {
       if (queryType === 'recent') {
         // Get most recent realms
         query = `
-          SELECT id, entity_id, realm_name, owner_name
+          SELECT id, entity_id, realm_name
           FROM "s1_eternum-SettleRealmData"
           ORDER BY id DESC
           LIMIT ${pageSize} OFFSET ${offset};
@@ -47,7 +49,7 @@ export default function RealmsExplorer() {
       } else if (queryType === 'range') {
         // Search within ID range
         query = `
-          SELECT id, entity_id, realm_name, owner_name
+          SELECT id, entity_id, realm_name
           FROM "s1_eternum-SettleRealmData"
           WHERE id BETWEEN ${minId} AND ${maxId}
           ORDER BY id
@@ -56,7 +58,7 @@ export default function RealmsExplorer() {
       } else {
         // Get all realms, ordered by ID
         query = `
-          SELECT id, entity_id, realm_name, owner_name
+          SELECT id, entity_id, realm_name
           FROM "s1_eternum-SettleRealmData"
           ORDER BY id
           LIMIT ${pageSize} OFFSET ${offset};
@@ -117,7 +119,6 @@ export default function RealmsExplorer() {
         entity_id: realm.entity_id,
         realm_id: realm.id,
         realm_name: realm.realm_name,
-        owner_name: realm.owner_name,
         decoded_name: decodeRealmName(realm.realm_name)
       }));
       
@@ -136,6 +137,116 @@ export default function RealmsExplorer() {
       setIsLoadingMore(false);
     }
   };
+
+  // Function to search realms in the database
+  const handleSearch = async () => {
+    if (!searchTerm || searchTerm.trim().length === 0) {
+      setSearchResults(null);
+      return;
+    }
+    
+    setIsSearching(true);
+    setError('');
+    
+    try {
+      let query;
+      const searchValue = searchTerm.trim();
+      
+      // Determine if search is by ID
+      const isNumericSearch = !isNaN(parseInt(searchValue));
+      
+      if (isNumericSearch) {
+        // Search by exact ID or containing ID
+        query = `
+          SELECT id, entity_id, realm_name
+          FROM "s1_eternum-SettleRealmData"
+          WHERE id = ${parseInt(searchValue)} OR id::text LIKE '%${searchValue}%' OR entity_id::text LIKE '%${searchValue}%'
+          ORDER BY 
+            CASE WHEN id = ${parseInt(searchValue)} THEN 0
+                 WHEN id::text LIKE '%${searchValue}%' THEN 1
+                 ELSE 2
+            END,
+            id
+          LIMIT 100;
+        `;
+      } else {
+        // Search by realm name - this is trickier with hex values
+        // We'll search for hex bytes that might match ASCII values of the search term
+        
+        // Convert search term to a series of hex patterns
+        const hexPattern = searchValue.split('').map(char => {
+          const hex = char.charCodeAt(0).toString(16);
+          return hex;
+        }).join('');
+        
+        query = `
+          SELECT id, entity_id, realm_name
+          FROM "s1_eternum-SettleRealmData"
+          WHERE 
+            realm_name LIKE '%${hexPattern}%'
+            OR id::text LIKE '%${searchValue}%'
+          ORDER BY id
+          LIMIT 100;
+        `;
+      }
+      
+      const response = await fetch('/api/query-sql', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(`Search failed: ${data.error || 'Unknown error'}`);
+      }
+      
+      if (!data.data || data.data.length === 0) {
+        setSearchResults([]);
+        return;
+      }
+      
+      // Transform the API data
+      const transformedResults = data.data.map(realm => ({
+        entity_id: realm.entity_id,
+        realm_id: realm.id,
+        realm_name: realm.realm_name,
+        decoded_name: decodeRealmName(realm.realm_name)
+      }));
+      
+      // Filter and sort on client side to make sure we're finding names that match
+      const clientFilteredResults = transformedResults.filter(realm => {
+        const lowerSearchTerm = searchValue.toLowerCase();
+        return (
+          realm.decoded_name.toLowerCase().includes(lowerSearchTerm) ||
+          realm.realm_id.toString().includes(searchValue) ||
+          realm.entity_id.toString().includes(searchValue)
+        );
+      });
+      
+      setSearchResults(clientFilteredResults);
+    } catch (err) {
+      console.error('Error searching realms:', err);
+      setError(err.message || 'Failed to search realms');
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Debounce search to avoid too many requests
+  useEffect(() => {
+    const delaySearch = setTimeout(() => {
+      if (searchTerm) {
+        handleSearch();
+      } else {
+        setSearchResults(null);
+      }
+    }, 500); // 500ms delay
+    
+    return () => clearTimeout(delaySearch);
+  }, [searchTerm]);
 
   // Fetch all realms on initial load
   useEffect(() => {
@@ -159,24 +270,35 @@ export default function RealmsExplorer() {
   };
 
   // Reset and search with new parameters
-  const handleSearch = () => {
+  const handleResetSearch = () => {
+    setSearchTerm('');
+    setSearchResults(null);
     fetchRealms(true);
   };
 
   // Filter and sort realms
-  const filteredAndSortedRealms = realms
-    .filter(realm => {
-      if (!searchTerm) return true;
-      
-      const searchLower = searchTerm.toLowerCase();
-      return (
-        realm.decoded_name.toLowerCase().includes(searchLower) ||
-        realm.realm_id.toString().includes(searchTerm) ||
-        realm.entity_id.toString().includes(searchTerm) ||
-        (realm.owner_name && realm.owner_name.toLowerCase().includes(searchLower))
-      );
-    })
-    .sort((a, b) => {
+  const getDisplayedRealms = () => {
+    // If search results exist, use those
+    if (searchResults !== null) {
+      return [...searchResults].sort((a, b) => {
+        let valueA = a[sortField];
+        let valueB = b[sortField];
+        
+        if (typeof valueA === 'string' && typeof valueB === 'string') {
+          valueA = valueA.toLowerCase();
+          valueB = valueB.toLowerCase();
+        }
+        
+        if (sortDirection === 'asc') {
+          return valueA > valueB ? 1 : -1;
+        } else {
+          return valueA < valueB ? 1 : -1;
+        }
+      });
+    }
+    
+    // Otherwise use the regular realms list
+    return [...realms].sort((a, b) => {
       let valueA = a[sortField];
       let valueB = b[sortField];
       
@@ -191,7 +313,10 @@ export default function RealmsExplorer() {
         return valueA < valueB ? 1 : -1;
       }
     });
+  };
 
+  const displayedRealms = getDisplayedRealms();
+  
   // Calculate if we're showing all available realms
   const isShowingAllRealms = 
     (queryType === 'range' && realms.length >= (maxId - minId + 1)) || 
@@ -323,7 +448,7 @@ export default function RealmsExplorer() {
               </div>
               
               <button
-                onClick={handleSearch}
+                onClick={() => fetchRealms(true)}
                 disabled={loading || isLoadingMore}
                 style={{ padding: '0.5rem 1rem' }}
               >
@@ -345,11 +470,32 @@ export default function RealmsExplorer() {
           <div style={{ flex: 1, minWidth: '250px' }}>
             <input
               type="text"
-              placeholder="Filter results by name, ID, or owner..."
+              placeholder="Search all realms by name or ID..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{ width: '100%' }}
             />
+            {searchResults !== null && (
+              <div style={{ 
+                marginTop: '0.5rem', 
+                fontSize: '0.8rem',
+                color: 'var(--color-primary)'
+              }}>
+                Showing search results. {' '}
+                <button 
+                  onClick={handleResetSearch}
+                  style={{ 
+                    backgroundColor: 'transparent', 
+                    color: 'var(--color-primary)',
+                    padding: '0',
+                    fontSize: '0.8rem',
+                    textDecoration: 'underline'
+                  }}
+                >
+                  Clear search
+                </button>
+              </div>
+            )}
           </div>
           
           <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -366,15 +512,20 @@ export default function RealmsExplorer() {
         </div>
         
         {/* Stats Display */}
-        {realms.length > 0 && (
+        {displayedRealms.length > 0 && (
           <div style={{ 
             marginBottom: '1rem', 
             fontSize: '0.9rem',
             color: '#999'
           }}>
-            Showing {filteredAndSortedRealms.length} realms
-            {searchTerm && ` (filtered from ${realms.length})`}
-            {!isShowingAllRealms && totalRealmCount > realms.length && ` out of ${totalRealmCount} total realms`}
+            {searchResults !== null ? (
+              `Found ${displayedRealms.length} realms matching "${searchTerm}"`
+            ) : (
+              `Showing ${displayedRealms.length} realms`
+            )}
+            {!isShowingAllRealms && searchResults === null && totalRealmCount > realms.length && 
+              ` out of ${totalRealmCount} total realms`
+            }
           </div>
         )}
         
@@ -383,7 +534,7 @@ export default function RealmsExplorer() {
           <div className="error">
             <p>{error}</p>
             <button
-              onClick={handleSearch}
+              onClick={() => fetchRealms(true)}
               style={{ 
                 marginTop: '0.5rem',
                 backgroundColor: 'var(--color-secondary)'
@@ -395,15 +546,15 @@ export default function RealmsExplorer() {
         )}
         
         {/* Loading Display */}
-        {loading && (
+        {(loading || isSearching) && (
           <div className="loading">
             <div className="loading-spinner"></div>
-            <p>Loading realms data...</p>
+            <p>{isSearching ? 'Searching realms...' : 'Loading realms data...'}</p>
           </div>
         )}
         
         {/* Results Display */}
-        {!loading && filteredAndSortedRealms.length > 0 && (
+        {!loading && !isSearching && displayedRealms.length > 0 && (
           <div style={{ 
             overflowX: 'auto',
             marginBottom: '2rem',
@@ -464,22 +615,6 @@ export default function RealmsExplorer() {
                   <th 
                     style={{ 
                       padding: '0.75rem',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      borderBottom: '1px solid #444'
-                    }}
-                    onClick={() => handleSort('owner_name')}
-                  >
-                    Owner
-                    {sortField === 'owner_name' && (
-                      <span style={{ marginLeft: '0.25rem' }}>
-                        {sortDirection === 'asc' ? '↑' : '↓'}
-                      </span>
-                    )}
-                  </th>
-                  <th 
-                    style={{ 
-                      padding: '0.75rem',
                       textAlign: 'center',
                       borderBottom: '1px solid #444'
                     }}
@@ -489,7 +624,7 @@ export default function RealmsExplorer() {
                 </tr>
               </thead>
               <tbody>
-                {filteredAndSortedRealms.map((realm) => (
+                {displayedRealms.map((realm) => (
                   <tr 
                     key={realm.entity_id}
                     style={{ 
@@ -526,7 +661,6 @@ export default function RealmsExplorer() {
                         </div>
                       )}
                     </td>
-                    <td style={{ padding: '0.75rem' }}>{realm.owner_name || 'Unknown'}</td>
                     <td style={{ padding: '0.75rem', textAlign: 'center' }}>
                       <Link 
                         href={`/?realm=${realm.realm_id}`}
@@ -550,8 +684,8 @@ export default function RealmsExplorer() {
           </div>
         )}
         
-        {/* Load More Button */}
-        {!loading && !error && hasMoreRealms && realms.length > 0 && (
+        {/* Load More Button - only show when not in search mode */}
+        {!loading && !error && hasMoreRealms && realms.length > 0 && searchResults === null && (
           <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
             <button
               onClick={handleLoadMore}
@@ -577,7 +711,7 @@ export default function RealmsExplorer() {
           </div>
         )}
         
-        {!loading && filteredAndSortedRealms.length === 0 && !error && (
+        {!loading && !isSearching && displayedRealms.length === 0 && !error && (
           <div style={{ 
             padding: '2rem', 
             textAlign: 'center',
@@ -585,12 +719,15 @@ export default function RealmsExplorer() {
             borderRadius: '4px',
             marginBottom: '2rem'
           }}>
-            <p>No realms found matching your criteria.</p>
+            <p>{searchResults !== null ? 
+              `No realms found matching "${searchTerm}".` : 
+              'No realms found matching your criteria.'
+            }</p>
             <button 
-              onClick={handleSearch}
+              onClick={searchResults !== null ? handleResetSearch : () => fetchRealms(true)}
               style={{ marginTop: '1rem' }}
             >
-              Reset Search
+              {searchResults !== null ? 'Clear Search' : 'Reset Search'}
             </button>
           </div>
         )}
@@ -607,7 +744,7 @@ export default function RealmsExplorer() {
             <li>Realm IDs are the public identifiers shown in-game</li>
             <li>Entity IDs are internal database identifiers used to link resources</li>
             <li>Realm names are stored as hexadecimal values on the blockchain</li>
-            <li>Owner names may not be available for all realms</li>
+            <li>Search works across all realms in the database (not just loaded ones)</li>
           </ul>
         </div>
       </main>
