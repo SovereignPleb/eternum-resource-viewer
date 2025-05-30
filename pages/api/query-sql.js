@@ -3,6 +3,7 @@ import axios from 'axios';
 
 // Define a list of available API endpoints to try if the primary one fails
 const API_ENDPOINTS = [
+  'https://api.cartridge.gg/x/eternum-game-mainnet-30/torii/sql',
   'https://api.cartridge.gg/x/eternum-game-mainnet-27/torii/sql',
   'https://api.cartridge.gg/x/eternum-game-mainnet-25/torii/sql',
   'https://api.cartridge.gg/x/eternum-game/torii/sql'
