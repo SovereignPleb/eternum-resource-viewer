@@ -6,7 +6,7 @@ export default function ResourceList({ realmData }) {
   const [resources, setResources] = useState([]);
   const [realmName, setRealmName] = useState('');
   const [resourceError, setResourceError] = useState(null);
-  const [expandedCategory, setExpandedCategory] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState('all');
   const [showTooltips, setShowTooltips] = useState(true);
   
   useEffect(() => {
@@ -32,13 +32,14 @@ export default function ResourceList({ realmData }) {
             value !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
           try {
             const resourceName = key.replace('_BALANCE', '');
-            const category = getResourceCategory(key);
-            const gameValue = convertHexToGameValue(value, category, level);
+            const category = getSimplifiedCategory(getResourceCategory(key));
+            const gameValue = convertHexToGameValue(value, getResourceCategory(key), level);
             
             if (gameValue > 0) {
               resourceArray.push({
                 name: resourceName,
                 category,
+                rawCategory: getResourceCategory(key),
                 value: gameValue,
                 rawValue: value,
                 hexLength: value.length
@@ -51,41 +52,14 @@ export default function ResourceList({ realmData }) {
         }
       }
       
-      // Group by category and sort by value
-      const groupedResources = resourceArray.reduce((acc, resource) => {
-        if (!acc[resource.category]) {
-          acc[resource.category] = [];
+      // Sort resources by category and then by value within category
+      const sortedResources = resourceArray.sort((a, b) => {
+        if (a.category !== b.category) {
+          // First by category
+          return a.category.localeCompare(b.category);
         }
-        acc[resource.category].push(resource);
-        return acc;
-      }, {});
-      
-      // Sort categories by importance
-      const orderedCategories = [
-        'Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 
-        'Labor', 'Food', 'Transport', 'Lords', 'Military'
-      ];
-      
-      const sortedResources = [];
-      orderedCategories.forEach(category => {
-        if (groupedResources[category]) {
-          // Sort resources within category by value (descending)
-          const sorted = [...groupedResources[category]].sort((a, b) => b.value - a.value);
-          sortedResources.push({
-            category,
-            resources: sorted
-          });
-        }
-      });
-      
-      // Add any categories not in our ordered list at the end
-      Object.keys(groupedResources).forEach(category => {
-        if (!orderedCategories.includes(category)) {
-          sortedResources.push({
-            category,
-            resources: [...groupedResources[category]].sort((a, b) => b.value - a.value)
-          });
-        }
+        // Then by value (descending)
+        return b.value - a.value;
       });
       
       setResources(sortedResources);
@@ -96,19 +70,13 @@ export default function ResourceList({ realmData }) {
     }
   }, [realmData]);
 
-  // Toggle category expansion
-  const toggleCategory = (category) => {
-    if (expandedCategory === category) {
-      setExpandedCategory(null);
-    } else {
-      setExpandedCategory(category);
-    }
-  };
+  // Get all unique categories
+  const categories = ['all', ...new Set(resources.map(r => r.category))].sort();
 
-  // Get total resource count
-  const getTotalResourceCount = () => {
-    return resources.reduce((total, category) => total + category.resources.length, 0);
-  };
+  // Filter resources by selected category
+  const filteredResources = selectedCategory === 'all' 
+    ? resources 
+    : resources.filter(r => r.category === selectedCategory);
 
   if (resourceError) {
     return (
@@ -155,61 +123,96 @@ export default function ResourceList({ realmData }) {
         </div>
       ) : (
         <>
-          <div style={{ marginBottom: '1rem', fontSize: '0.9rem', color: '#999' }}>
-            Found {getTotalResourceCount()} resources across {resources.length} categories
-          </div>
-          
-          {resources.map(category => (
-            <div key={category.category} style={{ marginBottom: '2rem' }}>
-              <div 
-                onClick={() => toggleCategory(category.category)}
-                style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  cursor: 'pointer',
-                  padding: '0.5rem',
-                  backgroundColor: 'var(--color-secondary)',
+          <div style={{ 
+            marginBottom: '1rem', 
+            display: 'flex', 
+            gap: '0.5rem', 
+            flexWrap: 'wrap',
+            alignItems: 'center'
+          }}>
+            <span style={{ fontSize: '0.9rem' }}>Filter: </span>
+            {categories.map(category => (
+              <button
+                key={category}
+                onClick={() => setSelectedCategory(category)}
+                style={{
+                  backgroundColor: selectedCategory === category ? 'var(--color-primary)' : 'var(--color-secondary)',
+                  color: selectedCategory === category ? '#000' : 'var(--color-text)',
+                  padding: '0.25rem 0.75rem',
+                  fontSize: '0.9rem',
                   borderRadius: '4px',
-                  marginBottom: '0.5rem'
                 }}
               >
-                <h3 style={{ margin: 0 }}>{category.category} Resources ({category.resources.length})</h3>
-                <span>{expandedCategory === category.category ? '▼' : '►'}</span>
-              </div>
-              
-              <div style={{ 
-                display: expandedCategory === category.category ? 'block' : 'none',
-                transition: 'all 0.3s ease'
-              }}>
-                <ul style={{ listStyle: 'none', padding: 0 }}>
-                  {category.resources.map(resource => (
-                    <li 
-                      key={resource.name} 
-                      style={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between',
-                        padding: '0.5rem 0',
-                        borderBottom: '1px solid #333'
-                      }}
-                      className="tooltip"
-                    >
-                      <span>{formatResourceName(resource.name)}</span>
-                      <span style={{ fontWeight: 'bold' }}>{formatNumber(resource.value)}</span>
-                      
-                      {showTooltips && (
-                        <span className="tooltip-text">
-                          Raw value: {resource.rawValue}<br />
-                          Category: {resource.category}<br />
-                          Length: {resource.hexLength} chars
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          ))}
+                {category === 'all' ? 'All' : category}
+                {category === 'all' && ` (${resources.length})`}
+                {category !== 'all' && ` (${resources.filter(r => r.category === category).length})`}
+              </button>
+            ))}
+          </div>
+          
+          <div style={{ 
+            overflowX: 'auto',
+            marginBottom: '2rem',
+            border: '1px solid #444',
+            borderRadius: '4px'
+          }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ backgroundColor: 'var(--color-secondary)' }}>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid #444' }}>
+                    Resource
+                  </th>
+                  <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid #444' }}>
+                    Category
+                  </th>
+                  <th style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid #444' }}>
+                    Amount
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredResources.map((resource, index) => (
+                  <tr 
+                    key={resource.name} 
+                    style={{
+                      backgroundColor: index % 2 === 0 ? 'var(--color-background)' : 'rgba(58, 58, 58, 0.3)',
+                      position: 'relative'
+                    }}
+                    className="tooltip"
+                  >
+                    <td style={{ padding: '0.75rem', borderBottom: '1px solid #333' }}>
+                      {formatResourceName(resource.name)}
+                    </td>
+                    <td style={{ padding: '0.75rem', borderBottom: '1px solid #333' }}>
+                      {resource.category}
+                    </td>
+                    <td style={{ 
+                      padding: '0.75rem', 
+                      textAlign: 'right', 
+                      fontWeight: 'bold',
+                      borderBottom: '1px solid #333' 
+                    }}>
+                      {formatNumberWithCommas(resource.value)}
+                    </td>
+                    
+                    {showTooltips && (
+                      <span className="tooltip-text" style={{ 
+                        left: 'auto', 
+                        right: '10px', 
+                        transform: 'none',
+                        width: '220px',
+                        textAlign: 'left'
+                      }}>
+                        Raw value: {resource.rawValue}<br />
+                        Original category: {resource.rawCategory}<br />
+                        Hex length: {resource.hexLength} chars
+                      </span>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           
           <div style={{ marginTop: '1rem', fontSize: '0.8rem', color: '#666', padding: '0.5rem', backgroundColor: 'rgba(0,0,0,0.1)', borderRadius: '4px' }}>
             <p>Note: Resource values are calculated from hex data using conversion formulas. Realm level affects resource calculation for common/uncommon resources.</p>
@@ -228,22 +231,15 @@ function formatResourceName(name) {
     );
 }
 
-function formatNumber(value) {
-  // For very large numbers, use K/M/B notation
-  if (value >= 1000000000) {
-    return (value / 1000000000).toFixed(2) + 'B';
-  } else if (value >= 1000000) {
-    return (value / 1000000).toFixed(2) + 'M';
-  } else if (value >= 1000) {
-    return (value / 1000).toFixed(2) + 'K';
-  }
+function formatNumberWithCommas(value) {
+  // For very small decimals, round to 2 decimal places
+  let formattedValue = value < 1 ? value.toFixed(2) : Math.round(value);
   
-  // For smaller numbers, show with up to 2 decimal places
-  return value.toLocaleString(undefined, {
-    maximumFractionDigits: 2
-  });
+  // Add commas for thousands
+  return formattedValue.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
+// Original category assignment
 function getResourceCategory(resourceKey) {
   const categories = {
     // Common resources
@@ -283,6 +279,7 @@ function getResourceCategory(resourceKey) {
     FISH_BALANCE: 'Food',
     DONKEY_BALANCE: 'Transport',
     LORDS_BALANCE: 'Lords',
+    ANCIENT_FRAGMENT_BALANCE: 'Ancient Fragment',
     
     // Military units
     KNIGHT_T1_BALANCE: 'Military',
@@ -300,4 +297,24 @@ function getResourceCategory(resourceKey) {
   };
   
   return categories[resourceKey] || 'Other';
+}
+
+// Simplified categories as requested
+function getSimplifiedCategory(originalCategory) {
+  const simplifiedMap = {
+    'Common': 'Resources',
+    'Uncommon': 'Resources',
+    'Rare': 'Resources',
+    'Epic': 'Resources',
+    'Legendary': 'Resources',
+    'Labor': 'Special',
+    'Lords': 'Special',
+    'Transport': 'Special',
+    'Ancient Fragment': 'Special',
+    'Food': 'Food',
+    'Military': 'Military',
+    'Other': 'Other'
+  };
+  
+  return simplifiedMap[originalCategory] || originalCategory;
 }
