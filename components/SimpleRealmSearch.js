@@ -152,6 +152,10 @@ export default function SimpleRealmSearch({ onSubmit, loading }) {
     } else if (e.key === 'Escape') {
       // Close dropdown on escape key
       setShowResults(false);
+    } else if (e.key === 'ArrowDown' && showResults && searchResults.length > 0) {
+      // Let user navigate the dropdown with arrow keys
+      e.preventDefault();
+      document.querySelector('.search-result-item')?.focus();
     }
   };
 
@@ -195,10 +199,10 @@ export default function SimpleRealmSearch({ onSubmit, loading }) {
         </div>
       </form>
       
-      {/* Search Results Dropdown */}
+      {/* Search Results Dropdown - positioned relative to the form container */}
       {showResults && searchResults.length > 0 && (
         <div style={{ 
-          position: 'absolute', 
+          position: 'relative', // Changed from absolute to relative
           width: '100%', 
           backgroundColor: 'var(--color-background)',
           border: '1px solid #555',
@@ -206,16 +210,24 @@ export default function SimpleRealmSearch({ onSubmit, loading }) {
           zIndex: 10,
           maxHeight: '300px',
           overflowY: 'auto',
-          boxShadow: '0 4px 8px rgba(0,0,0,0.2)'
+          boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
+          marginBottom: '1rem', // Add margin to push content below
+          marginTop: '-0.5rem' // Slight negative margin to connect with the form visually
         }}>
           {searchResults.map((realm) => (
             <div 
+              className="search-result-item"
+              tabIndex="0"
               key={realm.entity_id}
               onClick={() => selectRealm(realm.realm_id)}
               style={{
                 padding: '0.75rem',
                 borderBottom: '1px solid #333',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                outline: 'none' // Remove default focus outline
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') selectRealm(realm.realm_id);
               }}
               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-secondary)'}
               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
