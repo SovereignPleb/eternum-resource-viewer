@@ -39,6 +39,7 @@ export default function ResourceList({ realmData }) {
               resourceArray.push({
                 name: resourceName,
                 category,
+                sortOrder: getCategorySortOrder(category),
                 rawCategory: getResourceCategory(key),
                 value: gameValue,
                 rawValue: value,
@@ -52,13 +53,13 @@ export default function ResourceList({ realmData }) {
         }
       }
       
-      // Sort resources by category and then by value within category
+      // Sort resources by our custom sort order, then by value within category
       const sortedResources = resourceArray.sort((a, b) => {
-        if (a.category !== b.category) {
-          // First by category
-          return a.category.localeCompare(b.category);
+        if (a.sortOrder !== b.sortOrder) {
+          // First by custom category order
+          return a.sortOrder - b.sortOrder;
         }
-        // Then by value (descending)
+        // Then by value (descending) within category
         return b.value - a.value;
       });
       
@@ -70,8 +71,12 @@ export default function ResourceList({ realmData }) {
     }
   }, [realmData]);
 
-  // Get all unique categories
-  const categories = ['all', ...new Set(resources.map(r => r.category))].sort();
+  // Get all unique categories (ordered by our sort order)
+  const categories = ['all', ...new Set(resources.map(r => r.category))].sort((a, b) => {
+    if (a === 'all') return -1;
+    if (b === 'all') return 1;
+    return getCategorySortOrder(a) - getCategorySortOrder(b);
+  });
 
   // Filter resources by selected category
   const filteredResources = selectedCategory === 'all' 
@@ -100,15 +105,6 @@ export default function ResourceList({ realmData }) {
               <> | <strong>Owner:</strong> {realmData.ownerName}</>
             )}
           </p>
-        </div>
-        <div>
-          <button 
-            onClick={() => setShowTooltips(!showTooltips)}
-            className="btn-outline"
-            style={{ fontSize: '0.8rem', padding: '0.25rem 0.5rem' }}
-          >
-            {showTooltips ? 'Hide Details' : 'Show Details'}
-          </button>
         </div>
       </div>
       
@@ -175,10 +171,8 @@ export default function ResourceList({ realmData }) {
                   <tr 
                     key={resource.name} 
                     style={{
-                      backgroundColor: index % 2 === 0 ? 'var(--color-background)' : 'rgba(58, 58, 58, 0.3)',
-                      position: 'relative'
+                      backgroundColor: index % 2 === 0 ? 'var(--color-background)' : 'rgba(58, 58, 58, 0.3)'
                     }}
-                    className="tooltip"
                   >
                     <td style={{ padding: '0.75rem', borderBottom: '1px solid #333' }}>
                       {formatResourceName(resource.name)}
@@ -194,20 +188,6 @@ export default function ResourceList({ realmData }) {
                     }}>
                       {formatNumberWithCommas(resource.value)}
                     </td>
-                    
-                    {showTooltips && (
-                      <span className="tooltip-text" style={{ 
-                        left: 'auto', 
-                        right: '10px', 
-                        transform: 'none',
-                        width: '220px',
-                        textAlign: 'left'
-                      }}>
-                        Raw value: {resource.rawValue}<br />
-                        Original category: {resource.rawCategory}<br />
-                        Hex length: {resource.hexLength} chars
-                      </span>
-                    )}
                   </tr>
                 ))}
               </tbody>
@@ -317,4 +297,17 @@ function getSimplifiedCategory(originalCategory) {
   };
   
   return simplifiedMap[originalCategory] || originalCategory;
+}
+
+// Define category sort order: Special, Military, Food, Resources
+function getCategorySortOrder(category) {
+  const orderMap = {
+    'Special': 1,
+    'Military': 2,
+    'Food': 3,
+    'Resources': 4,
+    'Other': 5
+  };
+  
+  return orderMap[category] || 99; // Default to end for unknown categories
 }
