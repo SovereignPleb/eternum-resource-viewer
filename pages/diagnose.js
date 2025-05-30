@@ -1,11 +1,58 @@
 // pages/diagnose.js
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import ApiTester from '../components/ApiTester';
 
 export default function DiagnosePage() {
   const [activeTab, setActiveTab] = useState('api-test');
+  const [apiHealth, setApiHealth] = useState(null);
+  const [testingApi, setTestingApi] = useState(false);
+
+  // Check API health on page load
+  useEffect(() => {
+    checkApiHealth();
+  }, []);
+
+  // Test the API with a simple query
+  const checkApiHealth = async () => {
+    setTestingApi(true);
+    
+    try {
+      const response = await fetch('/api/query-sql', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: 'SELECT 1 as test' }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.data) {
+        setApiHealth({
+          status: 'healthy',
+          endpoint: data.endpoint || 'unknown',
+          message: 'API is responding normally',
+          time: new Date().toLocaleTimeString()
+        });
+      } else {
+        setApiHealth({
+          status: 'warning',
+          message: data.error || 'API returned an unexpected response',
+          details: data,
+          time: new Date().toLocaleTimeString()
+        });
+      }
+    } catch (err) {
+      console.error('API health check failed:', err);
+      setApiHealth({
+        status: 'error',
+        message: err.message || 'Failed to connect to API',
+        time: new Date().toLocaleTimeString()
+      });
+    } finally {
+      setTestingApi(false);
+    }
+  };
 
   return (
     <div className="container">
@@ -30,6 +77,52 @@ export default function DiagnosePage() {
         
         <div style={{ marginBottom: '2rem' }}>
           <p>This page provides diagnostic tools to help troubleshoot issues with the Eternum Resource Viewer.</p>
+          
+          {/* API Health Status */}
+          <div style={{ 
+            marginTop: '1rem',
+            padding: '1rem',
+            borderRadius: '4px',
+            backgroundColor: apiHealth?.status === 'healthy' ? 'rgba(0, 255, 0, 0.1)' : 
+                             apiHealth?.status === 'warning' ? 'rgba(255, 165, 0, 0.1)' :
+                             apiHealth?.status === 'error' ? 'rgba(255, 0, 0, 0.1)' : 
+                             'var(--color-secondary)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0 }}>API Status</h3>
+              <button 
+                onClick={checkApiHealth} 
+                disabled={testingApi}
+                className="btn-outline"
+                style={{ padding: '0.25rem 0.5rem' }}
+              >
+                {testingApi ? 'Testing...' : 'Test Now'}
+              </button>
+            </div>
+            
+            {apiHealth ? (
+              <div style={{ marginTop: '0.5rem' }}>
+                <p style={{ 
+                  color: apiHealth.status === 'healthy' ? 'green' : 
+                          apiHealth.status === 'warning' ? 'orange' : 
+                          'var(--color-error)'
+                }}>
+                  <strong>Status:</strong> {apiHealth.status === 'healthy' ? 'Healthy' : 
+                                           apiHealth.status === 'warning' ? 'Warning' : 
+                                           'Error'}
+                </p>
+                <p><strong>Message:</strong> {apiHealth.message}</p>
+                {apiHealth.endpoint && (
+                  <p><strong>Endpoint:</strong> {apiHealth.endpoint}</p>
+                )}
+                <p><strong>Last Checked:</strong> {apiHealth.time}</p>
+              </div>
+            ) : (
+              <p style={{ marginTop: '0.5rem' }}>
+                {testingApi ? 'Testing API connection...' : 'API status unknown. Click "Test Now" to check.'}
+              </p>
+            )}
+          </div>
         </div>
         
         <div style={{ marginBottom: '1.5rem' }}>
@@ -58,6 +151,18 @@ export default function DiagnosePage() {
             >
               API Information
             </button>
+            <button
+              onClick={() => setActiveTab('troubleshooting')}
+              style={{ 
+                padding: '0.5rem 1rem',
+                backgroundColor: 'transparent',
+                color: 'var(--color-text)',
+                borderBottom: activeTab === 'troubleshooting' ? '2px solid var(--color-primary)' : 'none',
+                fontWeight: activeTab === 'troubleshooting' ? 'bold' : 'normal'
+              }}
+            >
+              Troubleshooting
+            </button>
           </div>
         </div>
         
@@ -83,6 +188,28 @@ export default function DiagnosePage() {
               <p style={{ marginTop: '1rem', color: 'var(--color-primary)' }}>
                 <strong>Note:</strong> The endpoint was updated from mainnet-25 to mainnet-27 in the latest version.
               </p>
+            </div>
+            
+            <div style={{ marginBottom: '2rem' }}>
+              <h3>Using the API</h3>
+              <p>The Eternum API uses a GET request with a SQL query parameter:</p>
+              
+              <pre style={{ 
+                backgroundColor: '#111',
+                padding: '1rem',
+                borderRadius: '4px',
+                overflow: 'auto',
+                fontSize: '0.9rem'
+              }}>
+{`// Example URL
+https://api.cartridge.gg/x/eternum-game-mainnet-27/torii/sql?query=SELECT%201%20as%20test
+
+// In JavaScript
+const query = 'SELECT id FROM "s1_eternum-SettleRealmData" LIMIT 5';
+const url = \`\${apiEndpoint}?query=\${encodeURIComponent(query)}\`;
+const response = await fetch(url);
+const data = await response.json();`}
+              </pre>
             </div>
             
             <div style={{ marginBottom: '2rem' }}>
@@ -142,6 +269,74 @@ export default function DiagnosePage() {
               </pre>
               
               <p>The schema might change as the game evolves.</p>
+            </div>
+          </div>
+        )}
+        
+        {activeTab === 'troubleshooting' && (
+          <div>
+            <h2>Troubleshooting Guide</h2>
+            
+            <div className="card" style={{ marginBottom: '1.5rem' }}>
+              <h3>Common Error: "Realm not found"</h3>
+              <p><strong>Symptoms:</strong> You enter a Realm ID but get an error saying the realm was not found.</p>
+              <p><strong>Possible causes:</strong></p>
+              <ul style={{ paddingLeft: '1.5rem' }}>
+                <li>The Realm ID doesn't exist in the database</li>
+                <li>The API endpoint has changed</li>
+                <li>The database schema has changed</li>
+              </ul>
+              <p><strong>Solutions:</strong></p>
+              <ol style={{ paddingLeft: '1.5rem' }}>
+                <li>Use the <Link href="/find-realms" style={{ color: 'var(--color-primary)' }}>Find Valid Realm IDs</Link> tool to discover existing realms</li>
+                <li>Check the API status at the top of this page</li>
+                <li>Try clicking "Try Again" on the error message</li>
+              </ol>
+            </div>
+            
+            <div className="card" style={{ marginBottom: '1.5rem' }}>
+              <h3>Common Error: "Failed to fetch resource data"</h3>
+              <p><strong>Symptoms:</strong> The realm is found, but resources can't be loaded.</p>
+              <p><strong>Possible causes:</strong></p>
+              <ul style={{ paddingLeft: '1.5rem' }}>
+                <li>Resource table schema has changed</li>
+                <li>Network issue or API timeout</li>
+                <li>The realm has no resources</li>
+              </ul>
+              <p><strong>Solutions:</strong></p>
+              <ol style={{ paddingLeft: '1.5rem' }}>
+                <li>Check your internet connection</li>
+                <li>Try again later if it might be a temporary API issue</li>
+                <li>Try a different realm to see if the issue persists</li>
+              </ol>
+            </div>
+            
+            <div className="card" style={{ marginBottom: '1.5rem' }}>
+              <h3>Resource Values Look Incorrect</h3>
+              <p><strong>Symptoms:</strong> Resources are displayed but the values seem too high or too low.</p>
+              <p><strong>Possible causes:</strong></p>
+              <ul style={{ paddingLeft: '1.5rem' }}>
+                <li>Conversion formula might need adjusting</li>
+                <li>Realm level is not being considered correctly</li>
+                <li>Game mechanics have changed</li>
+              </ul>
+              <p><strong>Solutions:</strong></p>
+              <ol style={{ paddingLeft: '1.5rem' }}>
+                <li>Compare with in-game values if possible</li>
+                <li>Check that the realm level is displaying correctly</li>
+                <li>Turn on "Show Debug Tools" on the main page to see raw values</li>
+              </ol>
+            </div>
+            
+            <div style={{ marginTop: '1.5rem' }}>
+              <h3>Still Having Issues?</h3>
+              <p>If you're still experiencing problems:</p>
+              <ol style={{ paddingLeft: '1.5rem' }}>
+                <li>Try clearing your browser cache and refreshing</li>
+                <li>Use the API Connection Test tab to run a custom query</li>
+                <li>Check if the Eternum game or API has been updated recently</li>
+                <li>Consider reporting the issue to the developers</li>
+              </ol>
             </div>
           </div>
         )}
