@@ -85,14 +85,18 @@ export default function FindRealms() {
       <main>
         <h1>Find Eternum Realms</h1>
         
-        <div style={{ marginBottom: '1rem' }}>
+        <div style={{ marginBottom: '1rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
           <Link href="/" style={{ color: 'var(--color-primary)' }}>
             &larr; Back to Resource Viewer
+          </Link>
+          <Link href="/realms-explorer" style={{ color: 'var(--color-primary)' }}>
+            Realms Explorer →
           </Link>
         </div>
         
         <div style={{ marginBottom: '2rem' }}>
           <p>Use this tool to find valid realm IDs that you can use in the Resource Viewer.</p>
+          <p>For a more advanced search experience, try the <Link href="/realms-explorer" style={{ color: 'var(--color-primary)' }}>Realms Explorer</Link>.</p>
         </div>
         
         <form onSubmit={findRealms} style={{ marginBottom: '2rem' }}>
