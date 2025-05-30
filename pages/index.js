@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
-import RealmForm from '../components/RealmForm';
+import EnhancedRealmSearch from '../components/EnhancedRealmSearch';
 import ResourceList from '../components/ResourceList';
 import RealmDebugger from '../components/RealmDebugger';
 import LoadingIndicator from '../components/LoadingIndicator';
@@ -183,7 +183,8 @@ export default function Home() {
       <main>
         <h1>Eternum Resource Viewer</h1>
         
-        <RealmForm onSubmit={handleSubmit} loading={loading} />
+        {/* Replace RealmForm with EnhancedRealmSearch */}
+        <EnhancedRealmSearch onSubmit={handleSubmit} loading={loading} />
         
         <div style={{ marginBottom: '1rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
           <Link href="/realms-explorer" style={{ color: 'var(--color-primary)' }}>
