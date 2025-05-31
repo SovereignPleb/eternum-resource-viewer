@@ -9,6 +9,7 @@ export default function ResourceList({ realmData, onRefresh }) {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [showTooltips, setShowTooltips] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [totalWeight, setTotalWeight] = useState(0);
   
   useEffect(() => {
     try {
@@ -23,6 +24,7 @@ export default function ResourceList({ realmData, onRefresh }) {
       const resourceArray = [];
       const resourceData = realmData.resources;
       const level = realmData.level || 1;
+      let weightSum = 0;
       
       if (!resourceData) {
         throw new Error('No resource data available');
@@ -33,16 +35,24 @@ export default function ResourceList({ realmData, onRefresh }) {
             value !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
           try {
             const resourceName = key.replace('_BALANCE', '');
-            const category = getSimplifiedCategory(getResourceCategory(key));
-            const gameValue = convertHexToGameValue(value, getResourceCategory(key), level);
+            const rawCategory = getResourceCategory(key);
+            const category = getSimplifiedCategory(rawCategory);
+            const gameValue = convertHexToGameValue(value, rawCategory, level);
             
             if (gameValue > 0) {
+              // Calculate weight based on resource type
+              const weightPerUnit = getResourceWeight(key);
+              const weight = gameValue * weightPerUnit;
+              weightSum += weight;
+              
               resourceArray.push({
                 name: resourceName,
                 category,
                 sortOrder: getCategorySortOrder(category),
-                rawCategory: getResourceCategory(key),
+                rawCategory,
                 value: gameValue,
+                weight,
+                weightPerUnit,
                 rawValue: value,
                 hexLength: value.length
               });
@@ -53,6 +63,9 @@ export default function ResourceList({ realmData, onRefresh }) {
           }
         }
       }
+      
+      // Set total weight
+      setTotalWeight(weightSum);
       
       // Sort resources by our custom sort order, then by value within category
       const sortedResources = resourceArray.sort((a, b) => {
@@ -85,6 +98,11 @@ export default function ResourceList({ realmData, onRefresh }) {
   const filteredResources = selectedCategory === 'all' 
     ? resources 
     : resources.filter(r => r.category === selectedCategory);
+  
+  // Calculate filtered weight total
+  const filteredWeight = selectedCategory === 'all' 
+    ? totalWeight 
+    : filteredResources.reduce((sum, resource) => sum + resource.weight, 0);
 
   // Handle refresh button click
   const handleRefresh = () => {
@@ -187,7 +205,7 @@ export default function ResourceList({ realmData, onRefresh }) {
             borderRadius: '4px'
           }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                 <tr style={{ backgroundColor: 'var(--color-secondary)' }}>
                   <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid #444' }}>
                     Resource
@@ -198,9 +216,35 @@ export default function ResourceList({ realmData, onRefresh }) {
                   <th style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid #444' }}>
                     Amount
                   </th>
+                  <th style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid #444' }}>
+                    Weight (kg)
+                  </th>
                 </tr>
               </thead>
               <tbody>
+                {/* Weight Subtotal Row */}
+                <tr style={{ 
+                  backgroundColor: 'rgba(192, 168, 110, 0.15)',
+                  fontWeight: 'bold'
+                }}>
+                  <td colSpan="3" style={{ 
+                    padding: '0.75rem', 
+                    borderBottom: '1px solid #444',
+                    textAlign: 'right'
+                  }}>
+                    Total Weight:
+                  </td>
+                  <td style={{ 
+                    padding: '0.75rem', 
+                    borderBottom: '1px solid #444',
+                    textAlign: 'right',
+                    color: 'var(--color-primary)'
+                  }}>
+                    {formatNumberWithCommas(filteredWeight)} kg
+                  </td>
+                </tr>
+                
+                {/* Resource Rows */}
                 {filteredResources.map((resource, index) => (
                   <tr 
                     key={resource.name} 
@@ -220,7 +264,17 @@ export default function ResourceList({ realmData, onRefresh }) {
                       fontWeight: 'bold',
                       borderBottom: '1px solid #333' 
                     }}>
-                      {formatNumberWithCommas(resource.value)}
+                      {formatNumberWithCommas(resource.value, resource.rawCategory)}
+                    </td>
+                    <td style={{ 
+                      padding: '0.75rem', 
+                      textAlign: 'right',
+                      borderBottom: '1px solid #333',
+                      color: resource.weight > 0 ? 'inherit' : '#666'
+                    }}>
+                      {resource.weight > 0 
+                        ? formatNumberWithCommas(resource.weight) 
+                        : '0'}
                     </td>
                   </tr>
                 ))}
@@ -230,11 +284,38 @@ export default function ResourceList({ realmData, onRefresh }) {
           
           <div style={{ marginTop: '1rem', fontSize: '0.8rem', color: '#666', padding: '0.5rem', backgroundColor: 'rgba(0,0,0,0.1)', borderRadius: '4px' }}>
             <p>Note: Resource values are calculated from hex data using conversion formulas. Realm level affects resource calculation for common/uncommon resources.</p>
+            <p>Weight calculation: Resources = 1kg/unit, Military = 5kg/unit, Food & Fragments = 0.1kg/unit, Lords & Donkeys = 0kg/unit</p>
           </div>
         </>
       )}
     </div>
   );
+}
+
+// Get weight per unit based on resource type
+function getResourceWeight(resourceKey) {
+  // Military units (5kg per unit)
+  if (resourceKey.includes('KNIGHT_') || 
+      resourceKey.includes('PALADIN_') || 
+      resourceKey.includes('CROSSBOWMAN_') || 
+      resourceKey.includes('ARCHER_')) {
+    return 5;
+  }
+  
+  // Food and fragments (0.1kg per unit)
+  if (resourceKey.includes('WHEAT_') || 
+      resourceKey.includes('FISH_') || 
+      resourceKey.includes('FRAGMENT')) {
+    return 0.1;
+  }
+  
+  // Lords and transport have no weight
+  if (resourceKey.includes('LORDS_') || resourceKey.includes('DONKEY_')) {
+    return 0;
+  }
+  
+  // Default weight for resources (1kg per unit)
+  return 1;
 }
 
 function formatResourceName(name) {
@@ -245,12 +326,25 @@ function formatResourceName(name) {
     );
 }
 
-function formatNumberWithCommas(value) {
-  // For very small decimals, round to 2 decimal places
-  let formattedValue = value < 1 ? value.toFixed(2) : Math.round(value);
+function formatNumberWithCommas(value, category) {
+  // For military units and transport, show with different decimal places
+  if (category === 'Military' || category === 'Transport') {
+    return value.toFixed(1);
+  }
   
-  // Add commas for thousands
-  return formattedValue.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  // For small values (less than 10), show up to 1 decimal place
+  if (value < 10) {
+    return value.toFixed(1);
+  }
+  
+  // For medium values (less than 100), round to integers
+  if (value < 100) {
+    return Math.round(value).toString();
+  }
+  
+  // For larger values, round to integers and add commas for thousands
+  const formattedValue = Math.round(value).toString();
+  return formattedValue.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
 // Original category assignment
