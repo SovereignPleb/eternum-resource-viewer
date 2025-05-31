@@ -10,9 +10,13 @@ export default function ResourceList({ realmData, onRefresh }) {
   const [showTooltips, setShowTooltips] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [totalWeight, setTotalWeight] = useState(0);
+  const [rawData, setRawData] = useState(null);
   
   useEffect(() => {
     try {
+      // Save raw data for debugging
+      setRawData(realmData.resources);
+      
       // Decode realm name if it's in hex format
       if (realmData.name && realmData.name.startsWith('0x')) {
         setRealmName(decodeRealmName(realmData.name));
@@ -168,6 +172,24 @@ export default function ResourceList({ realmData, onRefresh }) {
           borderRadius: '4px'
         }}>
           <p>No resources found for this realm.</p>
+          
+          {/* Show raw data if debug is on */}
+          {rawData && (
+            <div style={{ marginTop: '1rem', textAlign: 'left' }}>
+              <p>Raw resource data was found but couldn't be processed. Here's what was returned:</p>
+              <pre style={{ 
+                backgroundColor: '#111',
+                padding: '0.5rem',
+                borderRadius: '4px',
+                overflow: 'auto',
+                maxHeight: '200px',
+                fontSize: '0.8rem',
+                textAlign: 'left'
+              }}>
+                {JSON.stringify(rawData, null, 2)}
+              </pre>
+            </div>
+          )}
         </div>
       ) : (
         <>
@@ -387,6 +409,19 @@ function getResourceCategory(resourceKey) {
     ARCHER_T2_BALANCE: 'Military',
     ARCHER_T3_BALANCE: 'Military'
   };
+  
+  // If the resource is not explicitly defined, try to categorize it based on name patterns
+  if (!categories[resourceKey]) {
+    if (resourceKey.includes('_T1_BALANCE') || 
+        resourceKey.includes('_T2_BALANCE') || 
+        resourceKey.includes('_T3_BALANCE')) {
+      return 'Military';
+    } else if (resourceKey.includes('ICE_BALANCE')) {
+      return 'Epic'; // TRUE_ICE_BALANCE is explicitly defined, but this catches any other ice types
+    } else if (resourceKey.includes('WOOD_BALANCE') && !resourceKey.includes('IRON')) {
+      return 'Common';
+    }
+  }
   
   return categories[resourceKey] || 'Other';
 }
