@@ -2,12 +2,13 @@
 import { useState, useEffect } from 'react';
 import { convertHexToGameValue, decodeRealmName } from '../utils/conversion';
 
-export default function ResourceList({ realmData }) {
+export default function ResourceList({ realmData, onRefresh }) {
   const [resources, setResources] = useState([]);
   const [realmName, setRealmName] = useState('');
   const [resourceError, setResourceError] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [showTooltips, setShowTooltips] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   useEffect(() => {
     try {
@@ -65,9 +66,11 @@ export default function ResourceList({ realmData }) {
       
       setResources(sortedResources);
       setResourceError(null);
+      setIsRefreshing(false);
     } catch (err) {
       console.error('Error processing realm resources:', err);
       setResourceError(err.message || 'Failed to process realm resources');
+      setIsRefreshing(false);
     }
   }, [realmData]);
 
@@ -83,6 +86,14 @@ export default function ResourceList({ realmData }) {
     ? resources 
     : resources.filter(r => r.category === selectedCategory);
 
+  // Handle refresh button click
+  const handleRefresh = () => {
+    if (onRefresh && !isRefreshing) {
+      setIsRefreshing(true);
+      onRefresh(realmData.id);
+    }
+  };
+
   if (resourceError) {
     return (
       <div className="error">
@@ -95,16 +106,39 @@ export default function ResourceList({ realmData }) {
   return (
     <div>
       <div style={{ marginBottom: '1.5rem' }} className="card-header">
-        <div>
-          <h2>{realmName}</h2>
-          <p>
-            <strong>Realm ID:</strong> {realmData.id} | 
-            <strong> Entity ID:</strong> {realmData.entityId} |
-            <strong> Level:</strong> {realmData.level || 1}
-            {realmData.ownerName && (
-              <> | <strong>Owner:</strong> {realmData.ownerName}</>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h2>{realmName}</h2>
+            <p>
+              <strong>Realm ID:</strong> {realmData.id} | 
+              <strong> Entity ID:</strong> {realmData.entityId} |
+              <strong> Level:</strong> {realmData.level || 1}
+              {realmData.ownerName && (
+                <> | <strong>Owner:</strong> {realmData.ownerName}</>
+              )}
+            </p>
+          </div>
+          <button 
+            onClick={handleRefresh} 
+            disabled={isRefreshing}
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center',
+              gap: '0.5rem',
+              backgroundColor: 'var(--color-secondary)',
+              padding: '0.5rem 1rem'
+            }}
+          >
+            {isRefreshing ? 'Refreshing...' : 'Refresh Resources'}
+            {isRefreshing && (
+              <div className="loading-spinner" style={{ 
+                width: '16px', 
+                height: '16px',
+                borderWidth: '2px',
+                marginLeft: '0.25rem'
+              }}></div>
             )}
-          </p>
+          </button>
         </div>
       </div>
       
