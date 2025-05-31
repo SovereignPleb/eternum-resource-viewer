@@ -78,8 +78,12 @@ function getResourceScaleFactor(category, hexValue) {
       result.multiplier = 1;
       break;
     case 'Labor':
+      result.multiplier = 64;
+      result.divisor = 16000; // Scale down labor by 16000 to match in-game values
+      break;
     case 'Lords':
       result.multiplier = 64;
+      result.divisor = 16000; // Scale down lords by 16000 to match in-game values
       break;
     case 'Military':
       result.multiplier = 4;
