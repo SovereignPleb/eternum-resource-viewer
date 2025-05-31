@@ -72,11 +72,15 @@ function getResourceScaleFactor(category, hexValue) {
   switch(category) {
     case 'Common':
     case 'Uncommon':
+      // For common/uncommon resources, we use divisor of 1 by default
+      // They seem to match in-game values without additional scaling
+      result.multiplier = 1;
+      break;
     case 'Rare':
     case 'Epic':
     case 'Legendary':
       result.multiplier = 1;
-      result.divisor = 4; // Scale down regular resources by 4 based on the data
+      result.divisor = 62.5; // Scale down rare/epic/legendary resources by 62.5 based on the data
       break;
     case 'Labor':
       result.multiplier = 64;
@@ -106,11 +110,10 @@ function getResourceScaleFactor(category, hexValue) {
     case 'Other':
       // For resources like Alchemical Silver
       result.multiplier = 1;
-      result.divisor = 250; // Similar scale to food resources based on observed data
+      result.divisor = 62.5; // Similar scale to rare resources based on observed data
       break;
     default:
       result.multiplier = 1;
-      result.divisor = 4; // Default to regular resource scaling
   }
   
   // Resource-specific overrides
@@ -119,7 +122,11 @@ function getResourceScaleFactor(category, hexValue) {
     
     // Special cases for specific resources based on the data
     if (resourceKey.includes('hartwood')) {
-      result.divisor = 250; // Hartwood has a different scaling (263,290 vs 1,053)
+      result.divisor = 62.5; // Hartwood has same scaling as other rare resources
+    } else if (resourceKey.includes('alchemical_')) {
+      result.divisor = 62.5; // Alchemical resources use same scaling as rare resources
+    } else if (resourceKey.includes('true_ice')) {
+      result.divisor = 62.5; // True Ice uses same scaling as other rare resources
     }
     
     // Military unit adjustments
