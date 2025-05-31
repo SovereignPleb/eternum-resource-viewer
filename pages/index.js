@@ -98,27 +98,16 @@ export default function Home() {
       
       console.log('Found realm with entity ID:', entityId, 'and level:', realmLevel);
       
-      // Step 2: Get resource data - Expanded to include more resources
+      // Step 2: Get resource data - Using a simpler query to avoid issues
       const resourceQuery = `
-        SELECT 
-          entity_id,
-          WOOD_BALANCE, STONE_BALANCE, COAL_BALANCE, COPPER_BALANCE, OBSIDIAN_BALANCE,
-          SILVER_BALANCE, GOLD_BALANCE, IRONWOOD_BALANCE, COLD_IRON_BALANCE,
-          MITHRAL_BALANCE, DEEP_CRYSTAL_BALANCE, RUBY_BALANCE, DIAMONDS_BALANCE, SAPPHIRE_BALANCE,
-          HARTWOOD_BALANCE, IGNIUM_BALANCE, TRUE_ICE_BALANCE, TWILIGHT_QUARTZ_BALANCE,
-          ADAMANTINE_BALANCE, ETHEREAL_SILICA_BALANCE, DRAGONHIDE_BALANCE, 
-          LABOR_BALANCE, WHEAT_BALANCE, FISH_BALANCE, DONKEY_BALANCE, LORDS_BALANCE,
-          KNIGHT_T1_BALANCE, KNIGHT_T2_BALANCE, KNIGHT_T3_BALANCE,
-          PALADIN_T1_BALANCE, PALADIN_T2_BALANCE, PALADIN_T3_BALANCE,
-          CROSSBOWMAN_T1_BALANCE, CROSSBOWMAN_T2_BALANCE, CROSSBOWMAN_T3_BALANCE,
-          ARCHER_T1_BALANCE, ARCHER_T2_BALANCE, ARCHER_T3_BALANCE,
-          ANCIENT_FRAGMENT_BALANCE
+        SELECT *
         FROM "s1_eternum-Resource"
         WHERE entity_id = ${entityId};
       `;
       
       console.log('Executing resource query for entity ID:', entityId);
       
+      // Use the same endpoint that worked for the first query
       const resourceResponse = await fetchWithRetry('/api/query-sql', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -170,6 +159,8 @@ export default function Home() {
     } catch (err) {
       console.error('Error fetching realm data:', err);
       setError(err.message || 'Failed to fetch realm data.');
+      // Always show debugger when there's an error
+      setShowDebugger(true);
     } finally {
       setLoading(false);
     }
