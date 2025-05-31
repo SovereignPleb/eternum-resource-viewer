@@ -232,7 +232,7 @@ export default function ResourceList({ realmData, onRefresh }) {
                     borderBottom: '1px solid #444',
                     textAlign: 'right'
                   }}>
-                    Total Weight:
+                    {/* This cell is intentionally empty */}
                   </td>
                   <td style={{ 
                     padding: '0.75rem', 
@@ -240,7 +240,7 @@ export default function ResourceList({ realmData, onRefresh }) {
                     textAlign: 'right',
                     color: 'var(--color-primary)'
                   }}>
-                    {formatNumberWithCommas(filteredWeight)} kg
+                    {addCommas(Math.round(filteredWeight))}
                   </td>
                 </tr>
                 
@@ -264,7 +264,7 @@ export default function ResourceList({ realmData, onRefresh }) {
                       fontWeight: 'bold',
                       borderBottom: '1px solid #333' 
                     }}>
-                      {formatNumberWithCommas(resource.value, resource.rawCategory)}
+                      {addCommas(Math.round(resource.value))}
                     </td>
                     <td style={{ 
                       padding: '0.75rem', 
@@ -273,7 +273,7 @@ export default function ResourceList({ realmData, onRefresh }) {
                       color: resource.weight > 0 ? 'inherit' : '#666'
                     }}>
                       {resource.weight > 0 
-                        ? formatNumberWithCommas(resource.weight) 
+                        ? addCommas(Math.round(resource.weight)) 
                         : '0'}
                     </td>
                   </tr>
@@ -326,25 +326,9 @@ function formatResourceName(name) {
     );
 }
 
-function formatNumberWithCommas(value, category) {
-  // For military units and transport, show with different decimal places
-  if (category === 'Military' || category === 'Transport') {
-    return value.toFixed(1);
-  }
-  
-  // For small values (less than 10), show up to 1 decimal place
-  if (value < 10) {
-    return value.toFixed(1);
-  }
-  
-  // For medium values (less than 100), round to integers
-  if (value < 100) {
-    return Math.round(value).toString();
-  }
-  
-  // For larger values, round to integers and add commas for thousands
-  const formattedValue = Math.round(value).toString();
-  return formattedValue.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+// Function to add commas to numbers
+function addCommas(value) {
+  return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
 // Original category assignment
