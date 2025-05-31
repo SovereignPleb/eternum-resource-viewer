@@ -395,6 +395,10 @@ function getResourceCategory(resourceKey) {
     LORDS_BALANCE: 'Lords',
     ANCIENT_FRAGMENT_BALANCE: 'Ancient Fragment',
     
+    // Alchemical resources
+    ALCHEMICAL_SILVER_BALANCE: 'Rare',
+    ALCHEMICAL_GOLD_BALANCE: 'Rare',
+    
     // Military units
     KNIGHT_T1_BALANCE: 'Military',
     KNIGHT_T2_BALANCE: 'Military',
@@ -420,6 +424,8 @@ function getResourceCategory(resourceKey) {
       return 'Epic'; // TRUE_ICE_BALANCE is explicitly defined, but this catches any other ice types
     } else if (resourceKey.includes('WOOD_BALANCE') && !resourceKey.includes('IRON')) {
       return 'Common';
+    } else if (resourceKey.includes('ALCHEMICAL_')) {
+      return 'Rare'; // Categorize all alchemical resources as Rare
     }
   }
   
