@@ -54,12 +54,11 @@ export default function Home() {
     setApiResponses({});
     setCurrentRealmId(realmId);
     
-    // Check cache first
+    // Clear cache for the current realm if we're refreshing it
     if (realmCache[realmId]) {
-      console.log('Using cached data for realm:', realmId);
-      setRealmData(realmCache[realmId]);
-      setLoading(false);
-      return;
+      const updatedCache = {...realmCache};
+      delete updatedCache[realmId];
+      setRealmCache(updatedCache);
     }
     
     try {
@@ -222,7 +221,7 @@ export default function Home() {
         
         {loading && <LoadingIndicator message="Loading realm data..." />}
         
-        {realmData && <ResourceList realmData={realmData} />}
+        {realmData && <ResourceList realmData={realmData} onRefresh={handleSubmit} />}
         
         {showDebugger && (
           <div style={{ marginTop: '2rem' }}>
