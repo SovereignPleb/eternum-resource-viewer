@@ -30,8 +30,8 @@ export function convertHexToGameValue(hexValue, category, realmLevel = 1) {
     // Display multiplier
     const displayMultiplier = BigInt(1000000);
     
-    // Get resource-specific multiplier
-    const multiplier = getResourceMultiplier(category, hexValue);
+    // Get resource-specific multiplier and divisor
+    const { multiplier, divisor } = getResourceScaleFactor(category, hexValue);
     
     // Level adjustment (for level 2+ realms)
     let levelAdjustment = BigInt(1);
@@ -40,10 +40,13 @@ export function convertHexToGameValue(hexValue, category, realmLevel = 1) {
     }
     
     // Calculate game value
-    const gameValue = Number(
+    let gameValue = Number(
       (decimalValue * displayMultiplier * BigInt(multiplier)) / 
       (baseFactor * levelAdjustment)
     );
+    
+    // Apply divisor for resources that need to be scaled down
+    gameValue = gameValue / divisor;
     
     return gameValue;
   } catch (error) {
@@ -53,50 +56,75 @@ export function convertHexToGameValue(hexValue, category, realmLevel = 1) {
 }
 
 /**
- * Get multiplier for a resource category with enhanced logic
+ * Get multiplier and divisor for a resource category with enhanced logic
  * @param {string} category - Resource category
  * @param {string} hexValue - Original hex value for context
- * @returns {number} - Multiplier value
+ * @returns {Object} - Object with multiplier and divisor values
  */
-function getResourceMultiplier(category, hexValue) {
-  // Enhanced multipliers based on category
-  const multipliers = {
-    'Common': 1,
-    'Uncommon': 1,
-    'Rare': 1,
-    'Epic': 1,
-    'Legendary': 1,
-    'Labor': 64,
-    'Lords': 64,
-    'Military': 4, // Default, some military resources may use different multipliers
-    'Transport': 4,
-    'Food': 1 // Default, Fish uses a different multiplier
+function getResourceScaleFactor(category, hexValue) {
+  // Default values
+  const result = {
+    multiplier: 1,
+    divisor: 1  // New parameter to scale down values when needed
   };
+  
+  // Resource category base multipliers
+  switch(category) {
+    case 'Common':
+    case 'Uncommon':
+    case 'Rare':
+    case 'Epic':
+    case 'Legendary':
+      result.multiplier = 1;
+      break;
+    case 'Labor':
+    case 'Lords':
+      result.multiplier = 64;
+      break;
+    case 'Military':
+      result.multiplier = 4;
+      result.divisor = 1000; // Scale down military units by 1000
+      break;
+    case 'Transport':
+      result.multiplier = 4;
+      result.divisor = 1000; // Scale down transport (donkeys) by 1000
+      break;
+    case 'Food':
+      // Check if this is fish which has a different multiplier
+      if (hexValue && hexValue.toLowerCase().includes('fish')) {
+        result.multiplier = 16;
+      } else {
+        result.multiplier = 1;
+      }
+      break;
+    default:
+      result.multiplier = 1;
+  }
   
   // Resource-specific overrides
-  const resourceSpecificMultipliers = {
-    'FISH': 16,
-    'KNIGHT_T2': 16,
-    'KNIGHT_T3': 64,
-    'PALADIN_T1': 16,
-    'PALADIN_T2': 64,
-    'PALADIN_T3': 256,
-    'ARCHER_T2': 16,
-    'ARCHER_T3': 64,
-    'CROSSBOWMAN_T2': 16,
-    'CROSSBOWMAN_T3': 64
-  };
-  
-  // Check if the hex value corresponds to a specific resource
-  // This is just a basic implementation - would need to be expanded
-  for (const [resourceName, specificMultiplier] of Object.entries(resourceSpecificMultipliers)) {
-    if (hexValue && hexValue.includes(resourceName.toLowerCase())) {
-      return specificMultiplier;
+  if (hexValue) {
+    const resourceKey = hexValue.toLowerCase();
+    
+    // Military unit adjustments
+    if (resourceKey.includes('knight_t2') || resourceKey.includes('paladin_t1')) {
+      result.multiplier = 16;
+    } else if (resourceKey.includes('knight_t3') || resourceKey.includes('paladin_t2')) {
+      result.multiplier = 64;
+    } else if (resourceKey.includes('paladin_t3')) {
+      result.multiplier = 256;
+    }
+    
+    // Check if this is a troop or transport unit that needs decimal adjustment
+    if (resourceKey.includes('knight') || 
+        resourceKey.includes('paladin') || 
+        resourceKey.includes('archer') || 
+        resourceKey.includes('crossbowman') ||
+        resourceKey.includes('donkey')) {
+      result.divisor = 1000; // Scale down by 1000 for proper decimal places
     }
   }
   
-  // Fall back to category-based multiplier
-  return multipliers[category] || 1;
+  return result;
 }
 
 /**
