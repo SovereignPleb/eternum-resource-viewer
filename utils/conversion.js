@@ -96,6 +96,7 @@ function getResourceScaleFactor(category, hexValue) {
       } else {
         result.multiplier = 1;
       }
+      result.divisor = 250; // Scale down food by 250 to match in-game values (verified)
       break;
     default:
       result.multiplier = 1;
@@ -112,15 +113,6 @@ function getResourceScaleFactor(category, hexValue) {
       result.multiplier = 64;
     } else if (resourceKey.includes('paladin_t3')) {
       result.multiplier = 256;
-    }
-    
-    // Check if this is a troop or transport unit that needs decimal adjustment
-    if (resourceKey.includes('knight') || 
-        resourceKey.includes('paladin') || 
-        resourceKey.includes('archer') || 
-        resourceKey.includes('crossbowman') ||
-        resourceKey.includes('donkey')) {
-      result.divisor = 1000; // Scale down by 1000 for proper decimal places
     }
   }
   
