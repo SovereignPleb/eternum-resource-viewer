@@ -76,6 +76,7 @@ function getResourceScaleFactor(category, hexValue) {
     case 'Epic':
     case 'Legendary':
       result.multiplier = 1;
+      result.divisor = 4; // Scale down regular resources by 4 based on the data
       break;
     case 'Labor':
       result.multiplier = 64;
@@ -102,13 +103,24 @@ function getResourceScaleFactor(category, hexValue) {
       }
       result.divisor = 250; // Scale down food by 250 to match in-game values (verified)
       break;
+    case 'Other':
+      // For resources like Alchemical Silver
+      result.multiplier = 1;
+      result.divisor = 250; // Similar scale to food resources based on observed data
+      break;
     default:
       result.multiplier = 1;
+      result.divisor = 4; // Default to regular resource scaling
   }
   
   // Resource-specific overrides
   if (hexValue) {
     const resourceKey = hexValue.toLowerCase();
+    
+    // Special cases for specific resources based on the data
+    if (resourceKey.includes('hartwood')) {
+      result.divisor = 250; // Hartwood has a different scaling (263,290 vs 1,053)
+    }
     
     // Military unit adjustments
     if (resourceKey.includes('knight_t2') || resourceKey.includes('paladin_t1')) {
