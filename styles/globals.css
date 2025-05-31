@@ -134,6 +134,9 @@ table th {
   padding: 0.75rem;
   background-color: var(--color-secondary);
   border-bottom: 1px solid #444;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 table td {
@@ -143,6 +146,13 @@ table td {
 
 table tr:hover {
   background-color: var(--color-secondary);
+}
+
+/* Table container with sticky header support */
+.table-container {
+  max-height: 500px;
+  overflow-y: auto;
+  position: relative;
 }
 
 /* Button variations */
