@@ -29,9 +29,10 @@ export default function ResourceList({ realmData, onRefresh }) {
       // Set weight capacity if available
       if (realmData.resources && realmData.resources["weight.capacity"]) {
         const capacityHex = realmData.resources["weight.capacity"];
-        // Convert capacity from hex using a scaling factor of 250,000,000
-        // to get to millions of kg as expected (6M kg)
-        const capacityValue = convertHexToNumber(capacityHex) / 250000000;
+        
+        // Convert capacity from hex using the correct scaling factor of 1 trillion
+        // This gives us the weight capacity in kilograms (e.g., 5M kg, 6M kg)
+        const capacityValue = convertHexToNumber(capacityHex) / 1000000000000;
         setMaxWeight(Math.round(capacityValue));
       }
       
@@ -135,15 +136,54 @@ export default function ResourceList({ realmData, onRefresh }) {
   function formatCoordinate(coord) {
     if (coord === undefined || coord === null) return '?';
     
-    // Adjust the coordinates to match the game's display
-    // The raw values are around 2147483646, need to be converted to display values
-    if (coord > 2147483600) {
-      // This is a negative coordinate in the game's coordinate system
-      return (coord - 2147483647 - 1);
+    // Fixed coordinate conversion formula
+    // For negative coordinates in the game's coordinate system
+    const MAX_INT_PLUS_1 = 2147483648; // 2^31
+    
+    if (coord > 2147483600) { // If it's close to MAX_INT
+      // Negative coordinate
+      return -(MAX_INT_PLUS_1 - coord);
     } else {
-      // This is a positive coordinate
+      // Positive coordinate
       return coord;
     }
+  }
+
+  // Function to determine if a wonder is present
+  function isWonderPresent(wonderValue) {
+    // In the database, wonder = 1 means "no wonder"
+    // wonder > 1 means "wonder present"
+    return wonderValue > 1;
+  }
+
+  // Function to format owner name to be more readable
+  function formatOwnerName(ownerName) {
+    // If it's a hex string, try to decode it as text (similar to realm name)
+    if (ownerName && ownerName.startsWith('0x')) {
+      // Remove '0x' prefix and leading zeros
+      const cleanHex = ownerName.replace(/^0x0+/, '');
+      
+      // If nothing left after cleaning, return original
+      if (!cleanHex) {
+        return ownerName;
+      }
+      
+      // Convert hex to ASCII text
+      let decodedName = '';
+      for (let i = 0; i < cleanHex.length; i += 2) {
+        const hexChar = cleanHex.substr(i, 2);
+        const decimalValue = parseInt(hexChar, 16);
+        
+        // Only include printable ASCII characters
+        if (decimalValue >= 32 && decimalValue <= 126) {
+          decodedName += String.fromCharCode(decimalValue);
+        }
+      }
+      
+      // If successfully decoded to text, return it, otherwise return original
+      return decodedName || ownerName;
+    }
+    return ownerName;
   }
 
   // Get all unique categories (ordered by our sort order)
@@ -226,13 +266,13 @@ export default function ResourceList({ realmData, onRefresh }) {
               <strong> Entity ID:</strong> {realmData.entityId} |
               <strong> Level:</strong> {realmData.level || 1}
               {realmData.ownerName && (
-                <> | <strong>Owner:</strong> {realmData.ownerName}</>
+                <> | <strong>Owner:</strong> {formatOwnerName(realmData.ownerName)}</>
               )}
             </p>
             {/* Add geographical details - simplified version */}
             <p style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#aaa' }}>
               <strong>Coordinates:</strong> ({formatCoordinate(realmData.x)}, {formatCoordinate(realmData.y)}) | 
-              <strong> Wonder:</strong> {realmData.wonder ? 'Yes' : 'No'}
+              <strong> Wonder:</strong> {isWonderPresent(realmData.wonder) ? 'Yes' : 'No'}
             </p>
           </div>
           <button 
