@@ -29,8 +29,8 @@ export default function ResourceList({ realmData, onRefresh }) {
       // Set weight capacity if available
       if (realmData.resources && realmData.resources["weight.capacity"]) {
         const capacityHex = realmData.resources["weight.capacity"];
-        // Convert capacity from hex to a human-readable value
-        // Using a simpler conversion for weight (divide by 250,000,000)
+        // Convert capacity from hex using a scaling factor of 250,000,000
+        // to get to millions of kg as expected (6M kg)
         const capacityValue = convertHexToNumber(capacityHex) / 250000000;
         setMaxWeight(Math.round(capacityValue));
       }
@@ -130,6 +130,21 @@ export default function ResourceList({ realmData, onRefresh }) {
     // Convert to decimal (use BigInt for large numbers)
     return Number(BigInt(`0x${hexValue}`));
   }
+  
+  // Helper function to format coordinates for display
+  function formatCoordinate(coord) {
+    if (coord === undefined || coord === null) return '?';
+    
+    // Adjust the coordinates to match the game's display
+    // The raw values are around 2147483646, need to be converted to display values
+    if (coord > 2147483600) {
+      // This is a negative coordinate in the game's coordinate system
+      return (coord - 2147483647 - 1);
+    } else {
+      // This is a positive coordinate
+      return coord;
+    }
+  }
 
   // Get all unique categories (ordered by our sort order)
   const categories = ['all', ...new Set(resources.map(r => r.category))].sort((a, b) => {
@@ -214,13 +229,9 @@ export default function ResourceList({ realmData, onRefresh }) {
                 <> | <strong>Owner:</strong> {realmData.ownerName}</>
               )}
             </p>
-            {/* Add geographical details */}
+            {/* Add geographical details - simplified version */}
             <p style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#aaa' }}>
-              <strong>Coordinates:</strong> ({realmData.x || '?'}, {realmData.y || '?'}) | 
-              <strong> Regions:</strong> {realmData.regions || '?'} | 
-              <strong> Cities:</strong> {realmData.cities || '?'} | 
-              <strong> Harbors:</strong> {realmData.harbors || '?'} | 
-              <strong> Rivers:</strong> {realmData.rivers || '?'} | 
+              <strong>Coordinates:</strong> ({formatCoordinate(realmData.x)}, {formatCoordinate(realmData.y)}) | 
               <strong> Wonder:</strong> {realmData.wonder ? 'Yes' : 'No'}
             </p>
           </div>
@@ -524,7 +535,6 @@ export default function ResourceList({ realmData, onRefresh }) {
             backgroundColor: 'rgba(0,0,0,0.1)', 
             borderRadius: '4px' 
           }}>
-            <p>Note: Resource values are calculated from hex data using conversion formulas. Realm level affects resource calculation for common/uncommon resources.</p>
             <p>Weight calculation: Resources = 1kg/unit, Military = 5kg/unit, Food & Fragments = 0.1kg/unit, Lords & Donkeys = 0kg/unit</p>
             <p>Click on column headers to sort the table by that column.</p>
           </div>
