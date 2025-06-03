@@ -62,43 +62,67 @@ export default function Home() {
     }
     
     try {
-      // Step 1: Combined query to get both entity info and level in one request
-      const combinedQuery = `
-        SELECT 
-          r.id, r.entity_id, r.realm_name, r.owner_name,
-          s."base.level" as level
-        FROM "s1_eternum-SettleRealmData" r
-        LEFT JOIN "s1_eternum-Structure" s ON r.entity_id = s.entity_id
-        WHERE r.id = ${realmId};
+      // Step 1: Get all realm details including geographic data
+      const realmQuery = `
+        SELECT id, entity_id, realm_name, owner_name,
+               x, y, regions, cities, harbors, rivers, wonder,
+               internal_created_at, internal_executed_at
+        FROM "s1_eternum-SettleRealmData"
+        WHERE id = ${realmId};
       `;
       
-      console.log('Executing combined query for realm ID:', realmId);
+      console.log('Executing realm query for realm ID:', realmId);
       
-      const combinedResponse = await fetchWithRetry('/api/query-sql', {
+      const realmResponse = await fetchWithRetry('/api/query-sql', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: combinedQuery }),
+        body: JSON.stringify({ query: realmQuery }),
       }, 3);
       
-      const combinedData = await combinedResponse.json();
-      setApiResponses(prev => ({ ...prev, combinedQuery: combinedData }));
+      const realmQueryData = await realmResponse.json();
+      setApiResponses(prev => ({ ...prev, realmQuery: realmQueryData }));
       
-      if (!combinedResponse.ok) {
-        throw new Error(`Failed to fetch realm data: ${combinedData.error || 'Unknown error'}`);
+      if (!realmResponse.ok) {
+        throw new Error(`Failed to fetch realm data: ${realmQueryData.error || 'Unknown error'}`);
       }
       
       // Check if we have data in the expected format
-      if (!combinedData.data || !Array.isArray(combinedData.data) || combinedData.data.length === 0) {
+      if (!realmQueryData.data || !Array.isArray(realmQueryData.data) || realmQueryData.data.length === 0) {
         throw new Error(`Realm with ID ${realmId} not found. The realm might not exist or there could be an issue with the API connection.`);
       }
       
-      const realm = combinedData.data[0];
+      const realm = realmQueryData.data[0];
       const entityId = realm.entity_id;
-      const realmLevel = realm.level || 1;
       
-      console.log('Found realm with entity ID:', entityId, 'and level:', realmLevel);
+      console.log('Found realm with entity ID:', entityId);
       
-      // Step 2: Get resource data - Using a simpler query to avoid issues
+      // Step 2: Get realm level from the Structure table
+      const levelQuery = `
+        SELECT "base.level" as level
+        FROM "s1_eternum-Structure"
+        WHERE entity_id = ${entityId};
+      `;
+      
+      console.log('Executing level query for entity ID:', entityId);
+      
+      const levelResponse = await fetchWithRetry('/api/query-sql', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: levelQuery }),
+      }, 3);
+      
+      const levelData = await levelResponse.json();
+      setApiResponses(prev => ({ ...prev, levelQuery: levelData }));
+      
+      let realmLevel = 1; // Default level
+      
+      if (levelResponse.ok && levelData.data && levelData.data.length > 0) {
+        realmLevel = levelData.data[0].level || 1;
+      }
+      
+      console.log('Realm level:', realmLevel);
+      
+      // Step 3: Get resource data - Using a simpler query to avoid issues
       const resourceQuery = `
         SELECT *
         FROM "s1_eternum-Resource"
@@ -125,14 +149,25 @@ export default function Home() {
         throw new Error(`No resources found for realm with ID ${realmId} (entity ID: ${entityId}).`);
       }
       
-      // Create the realm data object
+      // Create the realm data object with all the details
       const newRealmData = {
         id: realmId,
-        entityId,
+        entityId: entityId,
         level: realmLevel,
         name: realm.realm_name,
         ownerName: realm.owner_name,
         resources: resourceData.data[0],
+        // Add geographic details
+        x: realm.x,
+        y: realm.y,
+        regions: realm.regions,
+        cities: realm.cities,
+        harbors: realm.harbors,
+        rivers: realm.rivers,
+        wonder: realm.wonder,
+        // Add timestamps
+        createdAt: realm.internal_created_at,
+        executedAt: realm.internal_executed_at,
         timestamp: Date.now()
       };
       
@@ -181,7 +216,7 @@ export default function Home() {
         {/* Simple search component */}
         <SimpleRealmSearch onSubmit={handleSubmit} loading={loading} />
         
-        {/* Navigation links - removed Find Valid Realm IDs link */}
+        {/* Navigation links */}
         <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
           <Link href="/realms-explorer" style={{ color: 'var(--color-primary)' }}>
             Realms Explorer →
