@@ -1,16 +1,14 @@
 /**
- * Enhanced utility functions for converting Eternum data
+ * Simplified utility functions for converting Eternum data
  */
 
 /**
- * Convert hex resource value to game display value with improved handling
+ * Convert hex resource value to game display value using a simple scaling approach
  * @param {string} hexValue - Hex value from database
- * @param {string} category - Resource category
- * @param {number} realmLevel - Realm level
  * @returns {number} - In-game display value
  */
-export function convertHexToGameValue(hexValue, category, realmLevel = 1) {
-  // Better handling of empty/null values
+export function convertHexToGameValue(hexValue) {
+  // Handle empty/null values
   if (!hexValue || 
       hexValue === "0x0" || 
       hexValue === "0x0000000000000000000000000000000000000000000000000000000000000000") {
@@ -24,122 +22,18 @@ export function convertHexToGameValue(hexValue, category, realmLevel = 1) {
     // Convert to decimal (use BigInt for large numbers)
     const decimalValue = BigInt(`0x${hexValue}`);
     
-    // Base conversion factor
-    const baseFactor = BigInt(4000000000000);
-    
-    // Display multiplier
-    const displayMultiplier = BigInt(1000000);
-    
-    // Get resource-specific multiplier and divisor
-    const { multiplier, divisor } = getResourceScaleFactor(category, hexValue);
-    
-    // Level adjustment (for level 2+ realms)
-    let levelAdjustment = BigInt(1);
-    if (realmLevel > 1 && (category === 'Common' || category === 'Uncommon')) {
-      levelAdjustment = BigInt(63);
-    }
+    // Apply simple universal scaling factor
+    // This factor was determined by comparing hex values with in-game values
+    const scaleFactor = 250000000;
     
     // Calculate game value
-    let gameValue = Number(
-      (decimalValue * displayMultiplier * BigInt(multiplier)) / 
-      (baseFactor * levelAdjustment)
-    );
-    
-    // Apply divisor for resources that need to be scaled down
-    gameValue = gameValue / divisor;
+    const gameValue = Number(decimalValue) / scaleFactor;
     
     return gameValue;
   } catch (error) {
     console.error(`Error converting hex value (${hexValue}) to game value:`, error);
     return 0; // Return 0 on error instead of breaking
   }
-}
-
-/**
- * Get multiplier and divisor for a resource category with enhanced logic
- * @param {string} category - Resource category
- * @param {string} hexValue - Original hex value for context
- * @returns {Object} - Object with multiplier and divisor values
- */
-function getResourceScaleFactor(category, hexValue) {
-  // Default values
-  const result = {
-    multiplier: 1,
-    divisor: 1  // New parameter to scale down values when needed
-  };
-  
-  // Resource category base multipliers
-  switch(category) {
-    case 'Common':
-    case 'Uncommon':
-      // For common/uncommon resources, we use divisor of 1 by default
-      // They seem to match in-game values without additional scaling
-      result.multiplier = 1;
-      break;
-    case 'Rare':
-    case 'Epic':
-    case 'Legendary':
-      result.multiplier = 1;
-      result.divisor = 62.5; // Scale down rare/epic/legendary resources by 62.5 based on the data
-      break;
-    case 'Labor':
-      result.multiplier = 64;
-      result.divisor = 16000; // Scale down labor by 16000 to match in-game values
-      break;
-    case 'Lords':
-      result.multiplier = 64;
-      result.divisor = 16000; // Scale down lords by 16000 to match in-game values
-      break;
-    case 'Military':
-      result.multiplier = 4;
-      result.divisor = 1000; // Scale down military units by 1000
-      break;
-    case 'Transport':
-      result.multiplier = 4;
-      result.divisor = 1000; // Scale down transport (donkeys) by 1000
-      break;
-    case 'Food':
-      // Check if this is fish which has a different multiplier
-      if (hexValue && hexValue.toLowerCase().includes('fish')) {
-        result.multiplier = 16;
-      } else {
-        result.multiplier = 1;
-      }
-      result.divisor = 250; // Scale down food by 250 to match in-game values (verified)
-      break;
-    case 'Other':
-      // For resources like Alchemical Silver
-      result.multiplier = 1;
-      result.divisor = 62.5; // Similar scale to rare resources based on observed data
-      break;
-    default:
-      result.multiplier = 1;
-  }
-  
-  // Resource-specific overrides
-  if (hexValue) {
-    const resourceKey = hexValue.toLowerCase();
-    
-    // Special cases for specific resources based on the data
-    if (resourceKey.includes('hartwood')) {
-      result.divisor = 62.5; // Hartwood has same scaling as other rare resources
-    } else if (resourceKey.includes('alchemical_')) {
-      result.divisor = 62.5; // Alchemical resources use same scaling as rare resources
-    } else if (resourceKey.includes('true_ice')) {
-      result.divisor = 62.5; // True Ice uses same scaling as other rare resources
-    }
-    
-    // Military unit adjustments
-    if (resourceKey.includes('knight_t2') || resourceKey.includes('paladin_t1')) {
-      result.multiplier = 16;
-    } else if (resourceKey.includes('knight_t3') || resourceKey.includes('paladin_t2')) {
-      result.multiplier = 64;
-    } else if (resourceKey.includes('paladin_t3')) {
-      result.multiplier = 256;
-    }
-  }
-  
-  return result;
 }
 
 /**
