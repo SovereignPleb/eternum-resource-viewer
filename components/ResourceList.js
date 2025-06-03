@@ -7,10 +7,12 @@ export default function ResourceList({ realmData, onRefresh }) {
   const [realmName, setRealmName] = useState('');
   const [resourceError, setResourceError] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [showTooltips, setShowTooltips] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [totalWeight, setTotalWeight] = useState(0);
+  const [maxWeight, setMaxWeight] = useState(0);
   const [rawData, setRawData] = useState(null);
+  const [sortField, setSortField] = useState(null);
+  const [sortDirection, setSortDirection] = useState('desc');
   
   useEffect(() => {
     try {
@@ -24,9 +26,19 @@ export default function ResourceList({ realmData, onRefresh }) {
         setRealmName(realmData.name || `Realm #${realmData.id}`);
       }
       
+      // Set weight capacity if available
+      if (realmData.resources && realmData.resources["weight.capacity"]) {
+        const capacityHex = realmData.resources["weight.capacity"];
+        // Convert capacity from hex to a human-readable value
+        // Using a simpler conversion for weight (divide by 250,000,000)
+        const capacityValue = convertHexToNumber(capacityHex) / 250000000;
+        setMaxWeight(Math.round(capacityValue));
+      }
+      
       // Convert and organize resources
       const resourceArray = [];
       const resourceData = realmData.resources;
+      const level = realmData.level || 1;
       let weightSum = 0;
       
       if (!resourceData) {
@@ -34,17 +46,33 @@ export default function ResourceList({ realmData, onRefresh }) {
       }
       
       for (const [key, value] of Object.entries(resourceData)) {
+        // Process resource balances
         if (key.endsWith('_BALANCE') && value && value !== '0x0' && 
             value !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
           try {
             const resourceName = key.replace('_BALANCE', '');
-            const category = getResourceCategory(resourceName);
-            // Use simplified conversion with single scaling factor
-            const gameValue = convertHexToGameValue(value);
+            const rawCategory = getResourceCategory(key);
+            const category = getSimplifiedCategory(rawCategory);
+            const gameValue = convertHexToGameValue(value, rawCategory, level);
             
-            if (gameValue > 0) {
+            // Get production rate and pending resources if available
+            const productionRateKey = `${resourceName}_PRODUCTION.production_rate`;
+            const pendingResourcesKey = `${resourceName}_PRODUCTION.output_amount_left`;
+            
+            let productionRate = 0;
+            let pendingResources = 0;
+            
+            if (resourceData[productionRateKey]) {
+              productionRate = convertHexToGameValue(resourceData[productionRateKey], rawCategory, level);
+            }
+            
+            if (resourceData[pendingResourcesKey]) {
+              pendingResources = convertHexToGameValue(resourceData[pendingResourcesKey], rawCategory, level);
+            }
+            
+            if (gameValue > 0 || productionRate > 0 || pendingResources > 0) {
               // Calculate weight based on resource type
-              const weightPerUnit = getResourceWeight(resourceName);
+              const weightPerUnit = getResourceWeight(key);
               const weight = gameValue * weightPerUnit;
               weightSum += weight;
               
@@ -52,10 +80,14 @@ export default function ResourceList({ realmData, onRefresh }) {
                 name: resourceName,
                 category,
                 sortOrder: getCategorySortOrder(category),
+                rawCategory,
                 value: gameValue,
+                productionRate,
+                pendingResources,
                 weight,
                 weightPerUnit,
-                rawValue: value
+                rawValue: value,
+                hexLength: value.length
               });
             }
           } catch (resourceError) {
@@ -88,6 +120,17 @@ export default function ResourceList({ realmData, onRefresh }) {
     }
   }, [realmData]);
 
+  // Helper function to convert hex to number for weight calculations
+  function convertHexToNumber(hexValue) {
+    if (!hexValue || hexValue === '0x0') return 0;
+    
+    // Remove 0x prefix
+    hexValue = hexValue.replace(/^0x/, '');
+    
+    // Convert to decimal (use BigInt for large numbers)
+    return Number(BigInt(`0x${hexValue}`));
+  }
+
   // Get all unique categories (ordered by our sort order)
   const categories = ['all', ...new Set(resources.map(r => r.category))].sort((a, b) => {
     if (a === 'all') return -1;
@@ -100,10 +143,41 @@ export default function ResourceList({ realmData, onRefresh }) {
     ? resources 
     : resources.filter(r => r.category === selectedCategory);
   
+  // Apply sorting if a sort field is selected
+  const sortedResources = sortField 
+    ? [...filteredResources].sort((a, b) => {
+        let valueA = a[sortField];
+        let valueB = b[sortField];
+        
+        // For string values, use case-insensitive comparison
+        if (typeof valueA === 'string' && typeof valueB === 'string') {
+          valueA = valueA.toLowerCase();
+          valueB = valueB.toLowerCase();
+        }
+        
+        // Apply sort direction
+        return sortDirection === 'asc' 
+          ? (valueA > valueB ? 1 : -1) 
+          : (valueA < valueB ? 1 : -1);
+      })
+    : filteredResources;
+  
   // Calculate filtered weight total
   const filteredWeight = selectedCategory === 'all' 
     ? totalWeight 
-    : filteredResources.reduce((sum, resource) => sum + resource.weight, 0);
+    : sortedResources.reduce((sum, resource) => sum + resource.weight, 0);
+
+  // Handle sorting
+  const handleSort = (field) => {
+    if (sortField === field) {
+      // If already sorting by this field, toggle direction
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Otherwise, sort by the new field in descending order by default
+      setSortField(field);
+      setSortDirection('desc');
+    }
+  };
 
   // Handle refresh button click
   const handleRefresh = () => {
@@ -122,6 +196,10 @@ export default function ResourceList({ realmData, onRefresh }) {
     );
   }
 
+  // Calculate weight percentage for the progress bar
+  const weightPercentage = maxWeight > 0 ? Math.min(100, Math.round((totalWeight / maxWeight) * 100)) : 0;
+  const weightBarColor = weightPercentage > 90 ? '#ff6b6b' : weightPercentage > 75 ? '#ffd166' : '#06d6a0';
+
   return (
     <div>
       <div style={{ marginBottom: '1.5rem' }} className="card-header">
@@ -135,6 +213,15 @@ export default function ResourceList({ realmData, onRefresh }) {
               {realmData.ownerName && (
                 <> | <strong>Owner:</strong> {realmData.ownerName}</>
               )}
+            </p>
+            {/* Add geographical details */}
+            <p style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#aaa' }}>
+              <strong>Coordinates:</strong> ({realmData.x || '?'}, {realmData.y || '?'}) | 
+              <strong> Regions:</strong> {realmData.regions || '?'} | 
+              <strong> Cities:</strong> {realmData.cities || '?'} | 
+              <strong> Harbors:</strong> {realmData.harbors || '?'} | 
+              <strong> Rivers:</strong> {realmData.rivers || '?'} | 
+              <strong> Wonder:</strong> {realmData.wonder ? 'Yes' : 'No'}
             </p>
           </div>
           <button 
@@ -160,6 +247,30 @@ export default function ResourceList({ realmData, onRefresh }) {
           </button>
         </div>
       </div>
+      
+      {/* Weight capacity indicator */}
+      {maxWeight > 0 && (
+        <div style={{ marginBottom: '2rem', padding: '1rem', backgroundColor: 'var(--color-secondary)', borderRadius: '4px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+            <strong>Resource Weight</strong>
+            <span>{addCommas(Math.round(totalWeight))} / {addCommas(maxWeight)} kg ({weightPercentage}%)</span>
+          </div>
+          <div style={{ 
+            width: '100%', 
+            height: '8px', 
+            backgroundColor: '#444', 
+            borderRadius: '4px', 
+            overflow: 'hidden' 
+          }}>
+            <div style={{ 
+              width: `${weightPercentage}%`, 
+              height: '100%', 
+              backgroundColor: weightBarColor,
+              transition: 'width 0.3s ease'
+            }}></div>
+          </div>
+        </div>
+      )}
       
       {resources.length === 0 ? (
         <div style={{ 
@@ -226,17 +337,101 @@ export default function ResourceList({ realmData, onRefresh }) {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                 <tr style={{ backgroundColor: 'var(--color-secondary)' }}>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid #444' }}>
+                  <th 
+                    style={{ 
+                      padding: '0.75rem', 
+                      textAlign: 'left', 
+                      borderBottom: '1px solid #444',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => handleSort('name')}
+                  >
                     Resource
+                    {sortField === 'name' && (
+                      <span style={{ marginLeft: '0.25rem' }}>
+                        {sortDirection === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
                   </th>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid #444' }}>
+                  <th 
+                    style={{ 
+                      padding: '0.75rem', 
+                      textAlign: 'left', 
+                      borderBottom: '1px solid #444',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => handleSort('category')}
+                  >
                     Category
+                    {sortField === 'category' && (
+                      <span style={{ marginLeft: '0.25rem' }}>
+                        {sortDirection === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
                   </th>
-                  <th style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid #444' }}>
+                  <th 
+                    style={{ 
+                      padding: '0.75rem', 
+                      textAlign: 'right', 
+                      borderBottom: '1px solid #444',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => handleSort('value')}
+                  >
                     Amount
+                    {sortField === 'value' && (
+                      <span style={{ marginLeft: '0.25rem' }}>
+                        {sortDirection === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
                   </th>
-                  <th style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '1px solid #444' }}>
+                  <th 
+                    style={{ 
+                      padding: '0.75rem', 
+                      textAlign: 'right', 
+                      borderBottom: '1px solid #444',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => handleSort('productionRate')}
+                  >
+                    Production
+                    {sortField === 'productionRate' && (
+                      <span style={{ marginLeft: '0.25rem' }}>
+                        {sortDirection === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
+                  </th>
+                  <th 
+                    style={{ 
+                      padding: '0.75rem', 
+                      textAlign: 'right', 
+                      borderBottom: '1px solid #444',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => handleSort('pendingResources')}
+                  >
+                    Pending
+                    {sortField === 'pendingResources' && (
+                      <span style={{ marginLeft: '0.25rem' }}>
+                        {sortDirection === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
+                  </th>
+                  <th 
+                    style={{ 
+                      padding: '0.75rem', 
+                      textAlign: 'right', 
+                      borderBottom: '1px solid #444',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => handleSort('weight')}
+                  >
                     Weight (kg)
+                    {sortField === 'weight' && (
+                      <span style={{ marginLeft: '0.25rem' }}>
+                        {sortDirection === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
                   </th>
                 </tr>
               </thead>
@@ -246,12 +441,12 @@ export default function ResourceList({ realmData, onRefresh }) {
                   backgroundColor: 'rgba(192, 168, 110, 0.15)',
                   fontWeight: 'bold'
                 }}>
-                  <td colSpan="3" style={{ 
+                  <td colSpan="5" style={{ 
                     padding: '0.75rem', 
                     borderBottom: '1px solid #444',
                     textAlign: 'right'
                   }}>
-                    {/* This cell is intentionally empty */}
+                    <strong>Total Weight:</strong>
                   </td>
                   <td style={{ 
                     padding: '0.75rem', 
@@ -264,7 +459,7 @@ export default function ResourceList({ realmData, onRefresh }) {
                 </tr>
                 
                 {/* Resource Rows */}
-                {filteredResources.map((resource, index) => (
+                {sortedResources.map((resource, index) => (
                   <tr 
                     key={resource.name} 
                     style={{
@@ -289,6 +484,26 @@ export default function ResourceList({ realmData, onRefresh }) {
                       padding: '0.75rem', 
                       textAlign: 'right',
                       borderBottom: '1px solid #333',
+                      color: resource.productionRate > 0 ? '#06d6a0' : '#666'
+                    }}>
+                      {resource.productionRate > 0 
+                        ? `+${formatRate(resource.productionRate)}/h` 
+                        : '-'}
+                    </td>
+                    <td style={{ 
+                      padding: '0.75rem', 
+                      textAlign: 'right',
+                      borderBottom: '1px solid #333',
+                      color: resource.pendingResources > 0 ? '#ffd166' : '#666'
+                    }}>
+                      {resource.pendingResources > 0 
+                        ? addCommas(Math.round(resource.pendingResources)) 
+                        : '-'}
+                    </td>
+                    <td style={{ 
+                      padding: '0.75rem', 
+                      textAlign: 'right',
+                      borderBottom: '1px solid #333',
                       color: resource.weight > 0 ? 'inherit' : '#666'
                     }}>
                       {resource.weight > 0 
@@ -301,14 +516,34 @@ export default function ResourceList({ realmData, onRefresh }) {
             </table>
           </div>
           
-          <div style={{ marginTop: '1rem', fontSize: '0.8rem', color: '#666', padding: '0.5rem', backgroundColor: 'rgba(0,0,0,0.1)', borderRadius: '4px' }}>
-            <p>Note: Resource values are calculated from hex data using a simple scaling factor. For all resources, hex values are divided by 250,000,000 to get the displayed values.</p>
+          <div style={{ 
+            marginTop: '1rem', 
+            fontSize: '0.8rem', 
+            color: '#666', 
+            padding: '0.5rem', 
+            backgroundColor: 'rgba(0,0,0,0.1)', 
+            borderRadius: '4px' 
+          }}>
+            <p>Note: Resource values are calculated from hex data using conversion formulas. Realm level affects resource calculation for common/uncommon resources.</p>
             <p>Weight calculation: Resources = 1kg/unit, Military = 5kg/unit, Food & Fragments = 0.1kg/unit, Lords & Donkeys = 0kg/unit</p>
+            <p>Click on column headers to sort the table by that column.</p>
           </div>
         </>
       )}
     </div>
   );
+}
+
+// Format resource production rate with K/M/B notation
+function formatRate(value) {
+  if (value >= 1000000000) {
+    return (value / 1000000000).toFixed(1) + 'B';
+  } else if (value >= 1000000) {
+    return (value / 1000000).toFixed(1) + 'M';
+  } else if (value >= 1000) {
+    return (value / 1000).toFixed(1) + 'K';
+  }
+  return value.toFixed(0);
 }
 
 // Get weight per unit based on resource type
@@ -350,18 +585,103 @@ function addCommas(value) {
   return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
-// Simplified resource categorization
+// Original category assignment
 function getResourceCategory(resourceKey) {
-  if (resourceKey.includes('LABOR') || resourceKey.includes('LORDS') || resourceKey.includes('DONKEY')) {
-    return 'Special';
-  } else if (resourceKey.includes('KNIGHT') || resourceKey.includes('PALADIN') || 
-             resourceKey.includes('CROSSBOWMAN') || resourceKey.includes('ARCHER')) {
-    return 'Military';
-  } else if (resourceKey.includes('WHEAT') || resourceKey.includes('FISH')) {
-    return 'Food';
-  } else {
-    return 'Resources';
+  const categories = {
+    // Common resources
+    WOOD_BALANCE: 'Common',
+    STONE_BALANCE: 'Common',
+    COAL_BALANCE: 'Common',
+    COPPER_BALANCE: 'Common',
+    OBSIDIAN_BALANCE: 'Common',
+    
+    // Uncommon resources
+    SILVER_BALANCE: 'Uncommon',
+    GOLD_BALANCE: 'Uncommon',
+    IRONWOOD_BALANCE: 'Uncommon',
+    COLD_IRON_BALANCE: 'Uncommon',
+    
+    // Rare resources
+    MITHRAL_BALANCE: 'Rare',
+    DEEP_CRYSTAL_BALANCE: 'Rare',
+    RUBY_BALANCE: 'Rare',
+    DIAMONDS_BALANCE: 'Rare',
+    SAPPHIRE_BALANCE: 'Rare',
+    
+    // Epic resources
+    HARTWOOD_BALANCE: 'Epic',
+    IGNIUM_BALANCE: 'Epic',
+    TRUE_ICE_BALANCE: 'Epic',
+    TWILIGHT_QUARTZ_BALANCE: 'Epic',
+    
+    // Legendary resources
+    ADAMANTINE_BALANCE: 'Legendary',
+    ETHEREAL_SILICA_BALANCE: 'Legendary',
+    DRAGONHIDE_BALANCE: 'Legendary',
+    
+    // Special resources
+    LABOR_BALANCE: 'Labor',
+    WHEAT_BALANCE: 'Food',
+    FISH_BALANCE: 'Food',
+    DONKEY_BALANCE: 'Transport',
+    LORDS_BALANCE: 'Lords',
+    ANCIENT_FRAGMENT_BALANCE: 'Ancient Fragment',
+    
+    // Alchemical resources
+    ALCHEMICAL_SILVER_BALANCE: 'Rare',
+    ALCHEMICAL_GOLD_BALANCE: 'Rare',
+    
+    // Military units
+    KNIGHT_T1_BALANCE: 'Military',
+    KNIGHT_T2_BALANCE: 'Military',
+    KNIGHT_T3_BALANCE: 'Military',
+    PALADIN_T1_BALANCE: 'Military',
+    PALADIN_T2_BALANCE: 'Military',
+    PALADIN_T3_BALANCE: 'Military',
+    CROSSBOWMAN_T1_BALANCE: 'Military',
+    CROSSBOWMAN_T2_BALANCE: 'Military',
+    CROSSBOWMAN_T3_BALANCE: 'Military',
+    ARCHER_T1_BALANCE: 'Military',
+    ARCHER_T2_BALANCE: 'Military',
+    ARCHER_T3_BALANCE: 'Military'
+  };
+  
+  // If the resource is not explicitly defined, try to categorize it based on name patterns
+  if (!categories[resourceKey]) {
+    if (resourceKey.includes('_T1_BALANCE') || 
+        resourceKey.includes('_T2_BALANCE') || 
+        resourceKey.includes('_T3_BALANCE')) {
+      return 'Military';
+    } else if (resourceKey.includes('ICE_BALANCE')) {
+      return 'Epic'; // TRUE_ICE_BALANCE is explicitly defined, but this catches any other ice types
+    } else if (resourceKey.includes('WOOD_BALANCE') && !resourceKey.includes('IRON')) {
+      return 'Common';
+    } else if (resourceKey.includes('ALCHEMICAL_')) {
+      return 'Rare'; // Categorize all alchemical resources as Rare
+    }
   }
+  
+  return categories[resourceKey] || 'Other';
+}
+
+// Simplified categories as requested
+function getSimplifiedCategory(originalCategory) {
+  const simplifiedMap = {
+    'Common': 'Resources',
+    'Uncommon': 'Resources',
+    'Rare': 'Resources',
+    'Epic': 'Resources',
+    'Legendary': 'Resources',
+    'Labor': 'Special',
+    'Lords': 'Special',
+    'Transport': 'Special',
+    'Ancient Fragment': 'Special',
+    'Food': 'Food',
+    'Military': 'Military',
+    'Other': 'Other'
+  };
+  
+  return simplifiedMap[originalCategory] || originalCategory;
 }
 
 // Define category sort order: Special, Military, Food, Resources
