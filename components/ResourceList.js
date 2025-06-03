@@ -27,7 +27,6 @@ export default function ResourceList({ realmData, onRefresh }) {
       // Convert and organize resources
       const resourceArray = [];
       const resourceData = realmData.resources;
-      const level = realmData.level || 1;
       let weightSum = 0;
       
       if (!resourceData) {
@@ -39,13 +38,13 @@ export default function ResourceList({ realmData, onRefresh }) {
             value !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
           try {
             const resourceName = key.replace('_BALANCE', '');
-            const rawCategory = getResourceCategory(key);
-            const category = getSimplifiedCategory(rawCategory);
-            const gameValue = convertHexToGameValue(value, rawCategory, level);
+            const category = getResourceCategory(resourceName);
+            // Use simplified conversion with single scaling factor
+            const gameValue = convertHexToGameValue(value);
             
             if (gameValue > 0) {
               // Calculate weight based on resource type
-              const weightPerUnit = getResourceWeight(key);
+              const weightPerUnit = getResourceWeight(resourceName);
               const weight = gameValue * weightPerUnit;
               weightSum += weight;
               
@@ -53,12 +52,10 @@ export default function ResourceList({ realmData, onRefresh }) {
                 name: resourceName,
                 category,
                 sortOrder: getCategorySortOrder(category),
-                rawCategory,
                 value: gameValue,
                 weight,
                 weightPerUnit,
-                rawValue: value,
-                hexLength: value.length
+                rawValue: value
               });
             }
           } catch (resourceError) {
@@ -305,7 +302,7 @@ export default function ResourceList({ realmData, onRefresh }) {
           </div>
           
           <div style={{ marginTop: '1rem', fontSize: '0.8rem', color: '#666', padding: '0.5rem', backgroundColor: 'rgba(0,0,0,0.1)', borderRadius: '4px' }}>
-            <p>Note: Resource values are calculated from hex data using conversion formulas. Realm level affects resource calculation for common/uncommon resources.</p>
+            <p>Note: Resource values are calculated from hex data using a simple scaling factor. For all resources, hex values are divided by 250,000,000 to get the displayed values.</p>
             <p>Weight calculation: Resources = 1kg/unit, Military = 5kg/unit, Food & Fragments = 0.1kg/unit, Lords & Donkeys = 0kg/unit</p>
           </div>
         </>
@@ -353,103 +350,18 @@ function addCommas(value) {
   return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
-// Original category assignment
+// Simplified resource categorization
 function getResourceCategory(resourceKey) {
-  const categories = {
-    // Common resources
-    WOOD_BALANCE: 'Common',
-    STONE_BALANCE: 'Common',
-    COAL_BALANCE: 'Common',
-    COPPER_BALANCE: 'Common',
-    OBSIDIAN_BALANCE: 'Common',
-    
-    // Uncommon resources
-    SILVER_BALANCE: 'Uncommon',
-    GOLD_BALANCE: 'Uncommon',
-    IRONWOOD_BALANCE: 'Uncommon',
-    COLD_IRON_BALANCE: 'Uncommon',
-    
-    // Rare resources
-    MITHRAL_BALANCE: 'Rare',
-    DEEP_CRYSTAL_BALANCE: 'Rare',
-    RUBY_BALANCE: 'Rare',
-    DIAMONDS_BALANCE: 'Rare',
-    SAPPHIRE_BALANCE: 'Rare',
-    
-    // Epic resources
-    HARTWOOD_BALANCE: 'Epic',
-    IGNIUM_BALANCE: 'Epic',
-    TRUE_ICE_BALANCE: 'Epic',
-    TWILIGHT_QUARTZ_BALANCE: 'Epic',
-    
-    // Legendary resources
-    ADAMANTINE_BALANCE: 'Legendary',
-    ETHEREAL_SILICA_BALANCE: 'Legendary',
-    DRAGONHIDE_BALANCE: 'Legendary',
-    
-    // Special resources
-    LABOR_BALANCE: 'Labor',
-    WHEAT_BALANCE: 'Food',
-    FISH_BALANCE: 'Food',
-    DONKEY_BALANCE: 'Transport',
-    LORDS_BALANCE: 'Lords',
-    ANCIENT_FRAGMENT_BALANCE: 'Ancient Fragment',
-    
-    // Alchemical resources
-    ALCHEMICAL_SILVER_BALANCE: 'Rare',
-    ALCHEMICAL_GOLD_BALANCE: 'Rare',
-    
-    // Military units
-    KNIGHT_T1_BALANCE: 'Military',
-    KNIGHT_T2_BALANCE: 'Military',
-    KNIGHT_T3_BALANCE: 'Military',
-    PALADIN_T1_BALANCE: 'Military',
-    PALADIN_T2_BALANCE: 'Military',
-    PALADIN_T3_BALANCE: 'Military',
-    CROSSBOWMAN_T1_BALANCE: 'Military',
-    CROSSBOWMAN_T2_BALANCE: 'Military',
-    CROSSBOWMAN_T3_BALANCE: 'Military',
-    ARCHER_T1_BALANCE: 'Military',
-    ARCHER_T2_BALANCE: 'Military',
-    ARCHER_T3_BALANCE: 'Military'
-  };
-  
-  // If the resource is not explicitly defined, try to categorize it based on name patterns
-  if (!categories[resourceKey]) {
-    if (resourceKey.includes('_T1_BALANCE') || 
-        resourceKey.includes('_T2_BALANCE') || 
-        resourceKey.includes('_T3_BALANCE')) {
-      return 'Military';
-    } else if (resourceKey.includes('ICE_BALANCE')) {
-      return 'Epic'; // TRUE_ICE_BALANCE is explicitly defined, but this catches any other ice types
-    } else if (resourceKey.includes('WOOD_BALANCE') && !resourceKey.includes('IRON')) {
-      return 'Common';
-    } else if (resourceKey.includes('ALCHEMICAL_')) {
-      return 'Rare'; // Categorize all alchemical resources as Rare
-    }
+  if (resourceKey.includes('LABOR') || resourceKey.includes('LORDS') || resourceKey.includes('DONKEY')) {
+    return 'Special';
+  } else if (resourceKey.includes('KNIGHT') || resourceKey.includes('PALADIN') || 
+             resourceKey.includes('CROSSBOWMAN') || resourceKey.includes('ARCHER')) {
+    return 'Military';
+  } else if (resourceKey.includes('WHEAT') || resourceKey.includes('FISH')) {
+    return 'Food';
+  } else {
+    return 'Resources';
   }
-  
-  return categories[resourceKey] || 'Other';
-}
-
-// Simplified categories as requested
-function getSimplifiedCategory(originalCategory) {
-  const simplifiedMap = {
-    'Common': 'Resources',
-    'Uncommon': 'Resources',
-    'Rare': 'Resources',
-    'Epic': 'Resources',
-    'Legendary': 'Resources',
-    'Labor': 'Special',
-    'Lords': 'Special',
-    'Transport': 'Special',
-    'Ancient Fragment': 'Special',
-    'Food': 'Food',
-    'Military': 'Military',
-    'Other': 'Other'
-  };
-  
-  return simplifiedMap[originalCategory] || originalCategory;
 }
 
 // Define category sort order: Special, Military, Food, Resources
