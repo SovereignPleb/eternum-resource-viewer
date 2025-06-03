@@ -136,16 +136,20 @@ export default function ResourceList({ realmData, onRefresh }) {
   function formatCoordinate(coord) {
     if (coord === undefined || coord === null) return '?';
     
+    // Ensure coord is a number
+    const numCoord = typeof coord === 'string' ? parseInt(coord, 10) : coord;
+    
     // Fixed coordinate conversion formula
     // For negative coordinates in the game's coordinate system
     const MAX_INT_PLUS_1 = 2147483648; // 2^31
     
-    if (coord > 2147483600) { // If it's close to MAX_INT
+    if (numCoord > 2147483600) { // If it's close to MAX_INT
       // Negative coordinate
-      return -(MAX_INT_PLUS_1 - coord);
+      // Apply correction of +2 to match the game's display
+      return -(MAX_INT_PLUS_1 - numCoord) + 2;
     } else {
       // Positive coordinate
-      return coord;
+      return numCoord;
     }
   }
 
@@ -271,7 +275,7 @@ export default function ResourceList({ realmData, onRefresh }) {
             </p>
             {/* Add geographical details - simplified version */}
             <p style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#aaa' }}>
-              <strong>Coordinates:</strong> ({formatCoordinate(realmData.x)}, {formatCoordinate(realmData.y)}) | 
+              <strong>Coordinates:</strong> ({formatCoordinate(Number(realmData.x))}, {formatCoordinate(Number(realmData.y))}) | 
               <strong> Wonder:</strong> {isWonderPresent(realmData.wonder) ? 'Yes' : 'No'}
             </p>
           </div>
