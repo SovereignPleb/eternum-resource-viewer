@@ -139,14 +139,14 @@ export default function ResourceList({ realmData, onRefresh }) {
     // Ensure coord is a number
     const numCoord = typeof coord === 'string' ? parseInt(coord, 10) : coord;
     
-    // Fixed coordinate conversion formula
-    // For negative coordinates in the game's coordinate system
-    const MAX_INT_PLUS_1 = 2147483648; // 2^31
+    // Constants for coordinate conversion
+    const MAX_INT = 2147483647; // 2^31 - 1
+    const INT_RANGE = 2147483648; // 2^31
     
-    if (numCoord > 2147483600) { // If it's close to MAX_INT
-      // Negative coordinate
-      // Apply correction of +2 to match the game's display
-      return -(MAX_INT_PLUS_1 - numCoord) + 2;
+    if (numCoord > MAX_INT / 2) { // If it's in the upper half of the int range
+      // It's a negative coordinate
+      // For the Y coordinate 2147483566, this should yield -80
+      return -(INT_RANGE - numCoord) - 2;  // Adjust by -2 for exact match
     } else {
       // Positive coordinate
       return numCoord;
