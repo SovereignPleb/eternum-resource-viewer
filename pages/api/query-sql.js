@@ -1,7 +1,7 @@
 // pages/api/query-sql.js
 import axios from 'axios';
 
-// Define the primary API endpoint to use - updated to use mainnet-30 only
+// Define the primary API endpoint to use - updated to use mainnet-30
 const PRIMARY_ENDPOINT = 'https://api.cartridge.gg/x/eternum-game-mainnet-30/torii/sql';
 
 // Define a list of backup API endpoints to try if the primary one fails
