@@ -145,8 +145,7 @@ export default function ResourceList({ realmData, onRefresh }) {
     
     if (numCoord > MAX_INT / 2) { // If it's in the upper half of the int range
       // It's a negative coordinate
-      // For the Y coordinate 2147483566, this should yield -80
-      return -(INT_RANGE - numCoord) - 2;  // Adjust by -2 for exact match
+      return -(INT_RANGE - numCoord) + 4;  // Adjust by +4 for exact match
     } else {
       // Positive coordinate
       return numCoord;
